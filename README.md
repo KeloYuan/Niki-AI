@@ -57,12 +57,27 @@ npm run build
 ```json
 {
   "env": {
-    "ANTHROPIC_AUTH_TOKEN": "你的 API Key",
-    "API_TIMEOUT_MS": "300000"
+    "ANTHROPIC_AUTH_TOKEN": "你的api key",
+    "API_TIMEOUT_MS": "3000000",
+    "ANTHROPIC_BASE_URL": "https://api.z.ai/api/anthropic",
+    "MCP_TOOL_TIMEOUT": "30000",
+    "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1",
+    "ANTHROPIC_DEFAULT_HAIKU_MODEL": "glm-4.6",
+    "ANTHROPIC_DEFAULT_SONNET_MODEL": "glm-4.7",
+    "ANTHROPIC_DEFAULT_OPUS_MODEL": "glm-4.7"
   },
   "permissions": {
     "defaultMode": "bypassPermissions"
   },
+  "statusLine": {
+    "type": "command",
+    "command": "cc-statusline"
+  },
+  "enabledPlugins": {
+    "glm-plan-usage@zai-coding-plugins": true,
+    "glm-plan-bug@zai-coding-plugins": true
+  },
+  "alwaysThinkingEnabled": false,
   "model": "opus"
 }
 ```
@@ -71,6 +86,10 @@ npm run build
 - `permissions.defaultMode`: 设置为 `bypassPermissions` 绕过文件修改确认
 - `model`: 使用的 AI 模型（`opus` / `sonnet` / `haiku`）
 - `env.API_TIMEOUT_MS`: API 超时时间（毫秒）
+- `env.ANTHROPIC_BASE_URL`: API 基础 URL（用于使用自定义 API）
+- `statusLine`: 状态栏显示配置
+- `enabledPlugins`: 启用的插件列表
+- `alwaysThinkingEnabled`: 是否启用始终思考模式
 
 ### 2. 插件设置
 
