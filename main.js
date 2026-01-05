@@ -100,7 +100,21 @@ var I18N = {
     aboutLicense: "\u5F00\u6E90\u534F\u8BAE",
     aboutRepository: "\u4EE3\u7801\u4ED3\u5E93",
     aboutDescription: "\u7B80\u4ECB",
-    aboutDescriptionText: "Niki AI \u662F\u4E00\u4E2A Obsidian \u63D2\u4EF6\uFF0C\u96C6\u6210\u4E86 Claude Code CLI \u4F5C\u4E3A\u5BF9\u8BDD\u5F0F AI \u52A9\u624B\u3002\u4F60\u53EF\u4EE5\u5728\u4FA7\u8FB9\u680F\u4E0E Claude \u804A\u5929\uFF0C\u5305\u542B\u5F53\u524D\u7B14\u8BB0\u5185\u5BB9\u4F5C\u4E3A\u4E0A\u4E0B\u6587\uFF0C\u5E76\u5C06\u56DE\u590D\u76F4\u63A5\u63D2\u5165\u5230\u7B14\u8BB0\u4E2D\u3002"
+    aboutDescriptionText: "Niki AI \u662F\u4E00\u4E2A Obsidian \u63D2\u4EF6\uFF0C\u96C6\u6210\u4E86 Claude Code CLI \u4F5C\u4E3A\u5BF9\u8BDD\u5F0F AI \u52A9\u624B\u3002\u4F60\u53EF\u4EE5\u5728\u4FA7\u8FB9\u680F\u4E0E Claude \u804A\u5929\uFF0C\u5305\u542B\u5F53\u524D\u7B14\u8BB0\u5185\u5BB9\u4F5C\u4E3A\u4E0A\u4E0B\u6587\uFF0C\u5E76\u5C06\u56DE\u590D\u76F4\u63A5\u63D2\u5165\u5230\u7B14\u8BB0\u4E2D\u3002",
+    // 助手预设相关
+    assistantSectionName: "\u52A9\u624B\u9884\u8BBE",
+    assistantSectionDesc: "\u7BA1\u7406\u548C\u5207\u6362\u4E0D\u540C\u7684 AI \u52A9\u624B\uFF0C\u6BCF\u4E2A\u52A9\u624B\u6709\u72EC\u7ACB\u7684\u63D0\u793A\u8BCD\u914D\u7F6E\u3002",
+    assistantName: "\u52A9\u624B\u540D\u79F0",
+    assistantSystemPrompt: "\u7CFB\u7EDF\u63D0\u793A\u8BCD",
+    assistantAddNew: "\u6DFB\u52A0\u65B0\u52A9\u624B",
+    assistantDelete: "\u5220\u9664\u52A9\u624B",
+    assistantEdit: "\u7F16\u8F91\u52A9\u624B",
+    assistantDefaultName: "\u65B0\u52A9\u624B",
+    assistantDefaultPrompt: "\u4F60\u662F\u4E00\u4E2A AI \u52A9\u624B\u3002",
+    assistantCannotDeleteLast: "\u4E0D\u80FD\u5220\u9664\u6700\u540E\u4E00\u4E2A\u52A9\u624B\u9884\u8BBE",
+    currentAssistant: "\u5F53\u524D\u52A9\u624B",
+    sendInterrupt: "\u4E2D\u65AD",
+    sendSending: "\u53D1\u9001\u4E2D..."
   },
   "en-US": {
     openSidebarCommand: "Open Niki AI Sidebar",
@@ -162,7 +176,21 @@ var I18N = {
     aboutLicense: "License",
     aboutRepository: "Repository",
     aboutDescription: "Description",
-    aboutDescriptionText: "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes."
+    aboutDescriptionText: "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes.",
+    // Assistant presets
+    assistantSectionName: "Assistant Presets",
+    assistantSectionDesc: "Manage and switch between different AI assistants, each with independent prompt configuration.",
+    assistantName: "Assistant Name",
+    assistantSystemPrompt: "System Prompt",
+    assistantAddNew: "Add New Assistant",
+    assistantDelete: "Delete Assistant",
+    assistantEdit: "Edit Assistant",
+    assistantDefaultName: "New Assistant",
+    assistantDefaultPrompt: "You are an AI assistant.",
+    assistantCannotDeleteLast: "Cannot delete the last assistant preset",
+    currentAssistant: "Current Assistant",
+    sendInterrupt: "Stop",
+    sendSending: "Sending..."
   }
 };
 function t(language, key) {
@@ -184,7 +212,15 @@ var DEFAULT_SETTINGS = {
   language: "zh-CN",
   includeCurrentNote: false,
   topics: [],
-  currentTopicId: null
+  currentTopicId: null,
+  assistantPresets: [
+    {
+      id: "assistant_default",
+      name: "\u9ED8\u8BA4\u52A9\u624B",
+      systemPrompt: "You are Niki AI embedded in Obsidian (powered by Claude Code). Help me edit Markdown notes.\nWhen you propose changes, be explicit and keep the style consistent."
+    }
+  ],
+  currentAssistantId: "assistant_default"
 };
 var ClaudeSidebarPlugin = class extends import_obsidian.Plugin {
   async onload() {
@@ -238,6 +274,9 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
     this.loaded = false;
     // 新增：@ 文件相关
     this.mentionedFiles = [];
+    // 新增：发送状态管理
+    this.isSending = false;
+    this.currentProcess = null;
     this.handleOutsideClick = (e) => {
       if (this.filePickerEl && !this.filePickerEl.contains(e.target) && !this.inputEl.contains(e.target)) {
         this.hideFilePicker();
@@ -285,7 +324,10 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
     this.includeNoteEl.checked = this.plugin.settings.includeCurrentNote;
     includeNoteWrap.createEl("span", { text: this.plugin.t("includeCurrentNote") });
     const actions = topRow.createDiv("claude-code-actions");
-    const sendBtn = actions.createEl("button", {
+    this.assistantSelectEl = actions.createEl("select", {
+      cls: "claude-code-assistant-select"
+    });
+    this.sendBtn = actions.createEl("button", {
       text: this.plugin.t("send"),
       cls: "mod-cta"
     });
@@ -295,7 +337,7 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       attr: { placeholder: this.plugin.t("inputPlaceholder") }
     });
     this.inputEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         void this.handleSend();
       }
@@ -464,8 +506,12 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       this.plugin.settings.includeCurrentNote = this.includeNoteEl.checked;
       await this.plugin.saveSettings();
     });
-    sendBtn.addEventListener("click", () => this.handleSend());
+    this.sendBtn.addEventListener("click", () => this.handleSend());
     clearBtn.addEventListener("click", () => this.clearChat());
+    this.assistantSelectEl.addEventListener("change", async (e) => {
+      const target = e.target;
+      await this.switchAssistant(target.value);
+    });
     this.topicSelectEl.addEventListener("change", async (e) => {
       const target = e.target;
       await this.switchTopic(target.value);
@@ -487,6 +533,7 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
         }
       }
     }
+    this.renderAssistantSelector();
     this.renderTopicSelector();
     this.loaded = true;
     this.renderMessages();
@@ -496,11 +543,17 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
     this.loaded = false;
   }
   async handleSend() {
+    if (this.isSending) {
+      this.interruptSending();
+      return;
+    }
     const content = this.inputEl.value.trim();
     if (!content && this.mentionedFiles.length === 0) {
       return;
     }
     this.inputEl.value = "";
+    this.isSending = true;
+    this.updateSendButtonState();
     let messageContent = content;
     if (this.mentionedFiles.length > 0) {
       const fileList = this.mentionedFiles.map((f) => `@${f.basename}`).join(", ");
@@ -581,6 +634,34 @@ ${content}`;
     this.renderMessages();
     this.scrollToBottom();
     await this.saveCurrentTopic();
+    this.isSending = false;
+    this.updateSendButtonState();
+  }
+  // 更新发送按钮状态
+  updateSendButtonState() {
+    if (this.isSending) {
+      this.sendBtn.textContent = this.plugin.t("sendInterrupt");
+      this.sendBtn.removeClass("mod-cta");
+      this.inputEl.disabled = true;
+    } else {
+      this.sendBtn.textContent = this.plugin.t("send");
+      this.sendBtn.addClass("mod-cta");
+      this.inputEl.disabled = false;
+    }
+  }
+  // 中断发送
+  interruptSending() {
+    if (this.currentProcess) {
+      this.currentProcess.kill("SIGTERM");
+      this.currentProcess = null;
+    }
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (lastMessage && lastMessage.isPending) {
+      this.messages.pop();
+      this.renderMessages();
+    }
+    this.isSending = false;
+    this.updateSendButtonState();
   }
   clearChat() {
     this.messages = [];
@@ -594,7 +675,10 @@ ${content}`;
   }
   async buildPrompt(userInput) {
     const parts = [];
-    const system = this.plugin.settings.defaultPrompt.trim();
+    const currentAssistant = this.plugin.settings.assistantPresets.find(
+      (a) => a.id === this.plugin.settings.currentAssistantId
+    );
+    const system = ((currentAssistant == null ? void 0 : currentAssistant.systemPrompt) || this.plugin.settings.defaultPrompt).trim();
     if (system) {
       parts.push(`[System]
 ${system}`);
@@ -650,6 +734,7 @@ ${userInput}`);
           finalCommand,
           { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs },
           (error, stdout, stderr) => {
+            this.currentProcess = null;
             if (error) {
               reject(new Error(stderr || error.message));
               return;
@@ -657,6 +742,7 @@ ${userInput}`);
             resolve(stdout || stderr);
           }
         );
+        this.currentProcess = child;
         if (!hasPlaceholder && child.stdin) {
           child.stdin.write(prompt);
           child.stdin.end();
@@ -672,6 +758,7 @@ ${userInput}`);
             `cmd /c "${detectedClaude}"`,
             { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs, shell: true },
             (error, stdout, stderr) => {
+              this.currentProcess = null;
               if (error) {
                 reject(new Error(stderr || error.message));
                 return;
@@ -679,6 +766,7 @@ ${userInput}`);
               resolve(stdout || stderr);
             }
           );
+          this.currentProcess = child;
           if (child.stdin) {
             child.stdin.write(prompt);
             child.stdin.end();
@@ -695,6 +783,7 @@ ${userInput}`);
           args,
           { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs },
           (error, stdout, stderr) => {
+            this.currentProcess = null;
             if (error) {
               reject(new Error(stderr || error.message));
               return;
@@ -702,6 +791,7 @@ ${userInput}`);
             resolve(stdout || stderr);
           }
         );
+        this.currentProcess = child;
         if (child.stdin) {
           child.stdin.write(prompt);
           child.stdin.end();
@@ -1105,6 +1195,33 @@ ${content.trim()}
     this.mentionedFiles = [];
     this.renderMentionTags();
   }
+  // ============ 助手预设管理相关方法 ============
+  // 切换助手
+  async switchAssistant(assistantId) {
+    const assistant = this.plugin.settings.assistantPresets.find((a) => a.id === assistantId);
+    if (!assistant)
+      return;
+    this.plugin.settings.currentAssistantId = assistantId;
+    await this.plugin.saveSettings();
+    this.renderAssistantSelector();
+  }
+  // 渲染助手选择器
+  renderAssistantSelector() {
+    if (!this.assistantSelectEl)
+      return;
+    this.assistantSelectEl.empty();
+    const assistants = this.plugin.settings.assistantPresets;
+    const currentAssistantId = this.plugin.settings.currentAssistantId;
+    for (const assistant of assistants) {
+      const option = this.assistantSelectEl.createEl("option", {
+        value: assistant.id,
+        text: assistant.name || "\u672A\u547D\u540D\u52A9\u624B"
+      });
+      if (assistant.id === currentAssistantId) {
+        option.setAttribute("selected", "selected");
+      }
+    }
+  }
   // ============ 话题管理相关方法 ============
   // 生成话题ID
   generateTopicId() {
@@ -1473,6 +1590,119 @@ var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
       (text) => text.setPlaceholder("/path/to/vault").setValue(this.plugin.settings.workingDir).onChange(async (value) => {
         this.plugin.settings.workingDir = value;
         await this.plugin.saveSettings();
+      })
+    );
+    containerEl.createEl("h3", {
+      text: this.plugin.t("assistantSectionName"),
+      cls: "claude-code-about-header"
+    });
+    const assistantDesc = containerEl.createEl("p", {
+      text: this.plugin.t("assistantSectionDesc"),
+      cls: "setting-item-description"
+    });
+    const renderAssistantPresets = () => {
+      const oldList = containerEl.querySelector(".claude-assistant-list");
+      if (oldList) {
+        oldList.remove();
+      }
+      const assistantList = containerEl.createDiv("claude-assistant-list");
+      assistantList.style.marginTop = "12px";
+      for (const assistant of this.plugin.settings.assistantPresets) {
+        const assistantItem = assistantList.createDiv("claude-assistant-item");
+        assistantItem.style.padding = "12px";
+        assistantItem.style.marginBottom = "8px";
+        assistantItem.style.border = "1px solid var(--background-modifier-border)";
+        assistantItem.style.borderRadius = "8px";
+        assistantItem.style.background = "var(--background-secondary)";
+        const nameContainer = assistantItem.createDiv("claude-assistant-name-container");
+        nameContainer.style.display = "flex";
+        nameContainer.style.alignItems = "center";
+        nameContainer.style.justifyContent = "space-between";
+        nameContainer.style.marginBottom = "8px";
+        const nameInput = nameContainer.createEl("input", {
+          type: "text",
+          value: assistant.name
+        });
+        nameInput.style.flex = "1";
+        nameInput.style.marginRight = "8px";
+        nameInput.style.padding = "6px 10px";
+        nameInput.style.border = "1px solid var(--background-modifier-border)";
+        nameInput.style.borderRadius = "6px";
+        nameInput.style.background = "var(--background-primary)";
+        nameInput.style.color = "var(--text-normal)";
+        nameInput.addEventListener("input", async () => {
+          assistant.name = nameInput.value;
+          await this.plugin.saveSettings();
+        });
+        if (this.plugin.settings.assistantPresets.length > 1) {
+          const deleteBtn = nameContainer.createEl("button", {
+            text: this.plugin.t("assistantDelete")
+          });
+          deleteBtn.style.padding = "4px 10px";
+          deleteBtn.style.borderRadius = "6px";
+          deleteBtn.style.border = "1px solid var(--background-modifier-border)";
+          deleteBtn.style.background = "var(--background-modifier-form-field)";
+          deleteBtn.style.color = "var(--text-normal)";
+          deleteBtn.style.cursor = "pointer";
+          deleteBtn.addEventListener("click", async () => {
+            const index = this.plugin.settings.assistantPresets.findIndex((a) => a.id === assistant.id);
+            if (index > -1) {
+              this.plugin.settings.assistantPresets.splice(index, 1);
+              if (this.plugin.settings.currentAssistantId === assistant.id) {
+                this.plugin.settings.currentAssistantId = this.plugin.settings.assistantPresets[0].id;
+              }
+              await this.plugin.saveSettings();
+              renderAssistantPresets();
+            }
+          });
+        }
+        const promptLabel = assistantItem.createEl("label", {
+          text: this.plugin.t("assistantSystemPrompt") + ":"
+        });
+        promptLabel.style.display = "block";
+        promptLabel.style.fontSize = "12px";
+        promptLabel.style.color = "var(--text-muted)";
+        promptLabel.style.marginBottom = "4px";
+        const promptTextarea = assistantItem.createEl("textarea", {
+          value: assistant.systemPrompt
+        });
+        promptTextarea.style.width = "100%";
+        promptTextarea.style.minHeight = "80px";
+        promptTextarea.style.padding = "8px";
+        promptTextarea.style.border = "1px solid var(--background-modifier-border)";
+        promptTextarea.style.borderRadius = "6px";
+        promptTextarea.style.background = "var(--background-primary)";
+        promptTextarea.style.color = "var(--text-normal)";
+        promptTextarea.style.resize = "vertical";
+        promptTextarea.style.fontFamily = "var(--font-monospace)";
+        promptTextarea.style.fontSize = "12px";
+        let saveTimeout = null;
+        promptTextarea.addEventListener("input", () => {
+          assistant.systemPrompt = promptTextarea.value;
+          if (saveTimeout) {
+            clearTimeout(saveTimeout);
+          }
+          saveTimeout = setTimeout(async () => {
+            await this.plugin.saveSettings();
+            promptTextarea.style.borderColor = "var(--color-green)";
+            setTimeout(() => {
+              promptTextarea.style.borderColor = "var(--background-modifier-border)";
+            }, 500);
+          }, 500);
+        });
+      }
+    };
+    renderAssistantPresets();
+    new import_obsidian.Setting(containerEl).addButton(
+      (button) => button.setButtonText(this.plugin.t("assistantAddNew")).setCta().onClick(async () => {
+        const newAssistant = {
+          id: `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          name: this.plugin.t("assistantDefaultName"),
+          systemPrompt: this.plugin.t("assistantDefaultPrompt")
+        };
+        this.plugin.settings.assistantPresets.push(newAssistant);
+        await this.plugin.saveSettings();
+        renderAssistantPresets();
       })
     );
     containerEl.createEl("h3", {

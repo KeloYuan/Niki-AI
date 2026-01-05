@@ -101,6 +101,20 @@ const I18N = {
     aboutRepository: "代码仓库",
     aboutDescription: "简介",
     aboutDescriptionText: "Niki AI 是一个 Obsidian 插件，集成了 Claude Code CLI 作为对话式 AI 助手。你可以在侧边栏与 Claude 聊天，包含当前笔记内容作为上下文，并将回复直接插入到笔记中。",
+    // 助手预设相关
+    assistantSectionName: "助手预设",
+    assistantSectionDesc: "管理和切换不同的 AI 助手，每个助手有独立的提示词配置。",
+    assistantName: "助手名称",
+    assistantSystemPrompt: "系统提示词",
+    assistantAddNew: "添加新助手",
+    assistantDelete: "删除助手",
+    assistantEdit: "编辑助手",
+    assistantDefaultName: "新助手",
+    assistantDefaultPrompt: "你是一个 AI 助手。",
+    assistantCannotDeleteLast: "不能删除最后一个助手预设",
+    currentAssistant: "当前助手",
+    sendInterrupt: "中断",
+    sendSending: "发送中...",
   },
   "en-US": {
     openSidebarCommand: "Open Niki AI Sidebar",
@@ -184,6 +198,20 @@ const I18N = {
     aboutRepository: "Repository",
     aboutDescription: "Description",
     aboutDescriptionText: "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes.",
+    // Assistant presets
+    assistantSectionName: "Assistant Presets",
+    assistantSectionDesc: "Manage and switch between different AI assistants, each with independent prompt configuration.",
+    assistantName: "Assistant Name",
+    assistantSystemPrompt: "System Prompt",
+    assistantAddNew: "Add New Assistant",
+    assistantDelete: "Delete Assistant",
+    assistantEdit: "Edit Assistant",
+    assistantDefaultName: "New Assistant",
+    assistantDefaultPrompt: "You are an AI assistant.",
+    assistantCannotDeleteLast: "Cannot delete the last assistant preset",
+    currentAssistant: "Current Assistant",
+    sendInterrupt: "Stop",
+    sendSending: "Sending...",
   },
 } as const;
 
@@ -231,6 +259,12 @@ type ChatTopic = {
   updatedAt: number;             // 更新时间戳
 };
 
+type AssistantPreset = {
+  id: string;           // 唯一标识符
+  name: string;         // 助手名称（如"写作助手"、"编程助手"）
+  systemPrompt: string; // 系统提示词
+};
+
 interface ClaudeSidebarSettings {
   claudeCommand: string;
   claudePath: string;
@@ -242,6 +276,9 @@ interface ClaudeSidebarSettings {
   // 新增话题数据
   topics: ChatTopic[];           // 所有话题
   currentTopicId: string | null; // 当前话题ID
+  // 新增助手预设数据
+  assistantPresets: AssistantPreset[];  // 所有助手预设
+  currentAssistantId: string | null;   // 当前选中的助手ID
 }
 
 const DEFAULT_SETTINGS: ClaudeSidebarSettings = {
@@ -256,6 +293,16 @@ const DEFAULT_SETTINGS: ClaudeSidebarSettings = {
   includeCurrentNote: false,
   topics: [],
   currentTopicId: null,
+  assistantPresets: [
+    {
+      id: "assistant_default",
+      name: "默认助手",
+      systemPrompt:
+        "You are Niki AI embedded in Obsidian (powered by Claude Code). Help me edit Markdown notes.\n" +
+        "When you propose changes, be explicit and keep the style consistent.",
+    },
+  ],
+  currentAssistantId: "assistant_default",
 };
 
 export default class ClaudeSidebarPlugin extends Plugin {
@@ -331,6 +378,12 @@ class ClaudeSidebarView extends ItemView {
   private topicSelectEl: HTMLSelectElement;
   private newTopicBtn: HTMLButtonElement;
   private deleteTopicBtn: HTMLButtonElement;
+  // 新增：助手预设相关
+  private assistantSelectEl: HTMLSelectElement;
+  // 新增：发送状态管理
+  private isSending = false;
+  private sendBtn: HTMLButtonElement;
+  private currentProcess: ReturnType<typeof exec> | null = null;
 
   constructor(leaf: WorkspaceLeaf, plugin: ClaudeSidebarPlugin) {
     super(leaf);
@@ -393,7 +446,13 @@ class ClaudeSidebarView extends ItemView {
     includeNoteWrap.createEl("span", { text: this.plugin.t("includeCurrentNote") });
 
     const actions = topRow.createDiv("claude-code-actions");
-    const sendBtn = actions.createEl("button", {
+
+    // 新增：助手选择器（紧凑版）
+    this.assistantSelectEl = actions.createEl("select", {
+      cls: "claude-code-assistant-select"
+    });
+
+    this.sendBtn = actions.createEl("button", {
       text: this.plugin.t("send"),
       cls: "mod-cta",
     });
@@ -404,7 +463,8 @@ class ClaudeSidebarView extends ItemView {
       attr: { placeholder: this.plugin.t("inputPlaceholder") },
     });
     this.inputEl.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" && !event.shiftKey) {
+      // 检查是否在输入法中，避免输入法确认时触发发送
+      if (event.key === "Enter" && !event.shiftKey && !event.isComposing) {
         event.preventDefault();
         void this.handleSend();
       }
@@ -582,8 +642,14 @@ class ClaudeSidebarView extends ItemView {
       await this.plugin.saveSettings();
     });
 
-    sendBtn.addEventListener("click", () => this.handleSend());
+    this.sendBtn.addEventListener("click", () => this.handleSend());
     clearBtn.addEventListener("click", () => this.clearChat());
+
+    // 新增：助手预设事件绑定
+    this.assistantSelectEl.addEventListener("change", async (e) => {
+      const target = e.target as HTMLSelectElement;
+      await this.switchAssistant(target.value);
+    });
 
     // 新增：话题事件绑定
     this.topicSelectEl.addEventListener("change", async (e) => {
@@ -612,6 +678,7 @@ class ClaudeSidebarView extends ItemView {
       }
     }
 
+    this.renderAssistantSelector();
     this.renderTopicSelector();
     this.loaded = true;
     this.renderMessages();
@@ -624,11 +691,21 @@ class ClaudeSidebarView extends ItemView {
   }
 
   async handleSend() {
+    // 如果正在发送，则中断
+    if (this.isSending) {
+      this.interruptSending();
+      return;
+    }
+
     const content = this.inputEl.value.trim();
     if (!content && this.mentionedFiles.length === 0) {
       return;
     }
     this.inputEl.value = "";
+
+    // 设置发送状态
+    this.isSending = true;
+    this.updateSendButtonState();
 
     // 构建用户消息内容（包含被 @ 的文件信息）
     let messageContent = content;
@@ -727,6 +804,41 @@ class ClaudeSidebarView extends ItemView {
 
     // 新增：保存消息到话题
     await this.saveCurrentTopic();
+
+    // 恢复发送状态
+    this.isSending = false;
+    this.updateSendButtonState();
+  }
+
+  // 更新发送按钮状态
+  private updateSendButtonState() {
+    if (this.isSending) {
+      this.sendBtn.textContent = this.plugin.t("sendInterrupt");
+      this.sendBtn.removeClass("mod-cta");
+      this.inputEl.disabled = true;
+    } else {
+      this.sendBtn.textContent = this.plugin.t("send");
+      this.sendBtn.addClass("mod-cta");
+      this.inputEl.disabled = false;
+    }
+  }
+
+  // 中断发送
+  private interruptSending() {
+    if (this.currentProcess) {
+      this.currentProcess.kill("SIGTERM");
+      this.currentProcess = null;
+    }
+
+    // 移除正在思考的消息
+    const lastMessage = this.messages[this.messages.length - 1];
+    if (lastMessage && lastMessage.isPending) {
+      this.messages.pop();
+      this.renderMessages();
+    }
+
+    this.isSending = false;
+    this.updateSendButtonState();
   }
 
   clearChat() {
@@ -744,7 +856,11 @@ class ClaudeSidebarView extends ItemView {
 
   async buildPrompt(userInput: string) {
     const parts: string[] = [];
-    const system = this.plugin.settings.defaultPrompt.trim();
+    // 获取当前选中助手的系统提示词
+    const currentAssistant = this.plugin.settings.assistantPresets.find(
+      a => a.id === this.plugin.settings.currentAssistantId
+    );
+    const system = (currentAssistant?.systemPrompt || this.plugin.settings.defaultPrompt).trim();
     if (system) {
       parts.push(`[System]\n${system}`);
     }
@@ -808,6 +924,7 @@ class ClaudeSidebarView extends ItemView {
           finalCommand,
           { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs },
           (error, stdout, stderr) => {
+            this.currentProcess = null;
             if (error) {
               reject(new Error(stderr || error.message));
               return;
@@ -815,6 +932,8 @@ class ClaudeSidebarView extends ItemView {
             resolve(stdout || stderr);
           }
         );
+
+        this.currentProcess = child;
 
         if (!hasPlaceholder && child.stdin) {
           child.stdin.write(prompt);
@@ -834,6 +953,7 @@ class ClaudeSidebarView extends ItemView {
             `cmd /c "${detectedClaude}"`,
             { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs, shell: true },
             (error, stdout, stderr) => {
+              this.currentProcess = null;
               if (error) {
                 reject(new Error(stderr || error.message));
                 return;
@@ -841,6 +961,7 @@ class ClaudeSidebarView extends ItemView {
               resolve(stdout || stderr);
             }
           );
+          this.currentProcess = child;
           if (child.stdin) {
             child.stdin.write(prompt);
             child.stdin.end();
@@ -860,6 +981,7 @@ class ClaudeSidebarView extends ItemView {
           args,
           { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs },
           (error, stdout, stderr) => {
+            this.currentProcess = null;
             if (error) {
               reject(new Error(stderr || error.message));
               return;
@@ -867,6 +989,7 @@ class ClaudeSidebarView extends ItemView {
             resolve(stdout || stderr);
           }
         );
+        this.currentProcess = child;
         // 使用 stdin 传递 prompt，而不是命令行参数
         if (child.stdin) {
           child.stdin.write(prompt);
@@ -1359,6 +1482,39 @@ class ClaudeSidebarView extends ItemView {
     this.renderMentionTags();
   }
 
+  // ============ 助手预设管理相关方法 ============
+
+  // 切换助手
+  private async switchAssistant(assistantId: string): Promise<void> {
+    const assistant = this.plugin.settings.assistantPresets.find(a => a.id === assistantId);
+    if (!assistant) return;
+
+    this.plugin.settings.currentAssistantId = assistantId;
+    await this.plugin.saveSettings();
+    this.renderAssistantSelector();
+  }
+
+  // 渲染助手选择器
+  private renderAssistantSelector(): void {
+    if (!this.assistantSelectEl) return;
+
+    this.assistantSelectEl.empty();
+
+    const assistants = this.plugin.settings.assistantPresets;
+    const currentAssistantId = this.plugin.settings.currentAssistantId;
+
+    for (const assistant of assistants) {
+      const option = this.assistantSelectEl.createEl("option", {
+        value: assistant.id,
+        text: assistant.name || "未命名助手",
+      });
+
+      if (assistant.id === currentAssistantId) {
+        option.setAttribute("selected", "selected");
+      }
+    }
+  }
+
   // ============ 话题管理相关方法 ============
 
   // 生成话题ID
@@ -1842,6 +1998,151 @@ class ClaudeSidebarSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             this.plugin.settings.workingDir = value;
             await this.plugin.saveSettings();
+          })
+      );
+
+    // 助手预设管理
+    containerEl.createEl("h3", {
+      text: this.plugin.t("assistantSectionName"),
+      cls: "claude-code-about-header"
+    });
+
+    const assistantDesc = containerEl.createEl("p", {
+      text: this.plugin.t("assistantSectionDesc"),
+      cls: "setting-item-description"
+    });
+
+    // 渲染助手预设列表
+    const renderAssistantPresets = () => {
+      // 移除旧的助手列表（如果存在）
+      const oldList = containerEl.querySelector(".claude-assistant-list");
+      if (oldList) {
+        oldList.remove();
+      }
+
+      const assistantList = containerEl.createDiv("claude-assistant-list");
+      assistantList.style.marginTop = "12px";
+
+      for (const assistant of this.plugin.settings.assistantPresets) {
+        const assistantItem = assistantList.createDiv("claude-assistant-item");
+        assistantItem.style.padding = "12px";
+        assistantItem.style.marginBottom = "8px";
+        assistantItem.style.border = "1px solid var(--background-modifier-border)";
+        assistantItem.style.borderRadius = "8px";
+        assistantItem.style.background = "var(--background-secondary)";
+
+        // 助手名称（可编辑）
+        const nameContainer = assistantItem.createDiv("claude-assistant-name-container");
+        nameContainer.style.display = "flex";
+        nameContainer.style.alignItems = "center";
+        nameContainer.style.justifyContent = "space-between";
+        nameContainer.style.marginBottom = "8px";
+
+        const nameInput = nameContainer.createEl("input", {
+          type: "text",
+          value: assistant.name,
+        });
+        nameInput.style.flex = "1";
+        nameInput.style.marginRight = "8px";
+        nameInput.style.padding = "6px 10px";
+        nameInput.style.border = "1px solid var(--background-modifier-border)";
+        nameInput.style.borderRadius = "6px";
+        nameInput.style.background = "var(--background-primary)";
+        nameInput.style.color = "var(--text-normal)";
+
+        nameInput.addEventListener("input", async () => {
+          assistant.name = nameInput.value;
+          await this.plugin.saveSettings();
+        });
+
+        // 删除按钮
+        if (this.plugin.settings.assistantPresets.length > 1) {
+          const deleteBtn = nameContainer.createEl("button", {
+            text: this.plugin.t("assistantDelete"),
+          });
+          deleteBtn.style.padding = "4px 10px";
+          deleteBtn.style.borderRadius = "6px";
+          deleteBtn.style.border = "1px solid var(--background-modifier-border)";
+          deleteBtn.style.background = "var(--background-modifier-form-field)";
+          deleteBtn.style.color = "var(--text-normal)";
+          deleteBtn.style.cursor = "pointer";
+
+          deleteBtn.addEventListener("click", async () => {
+            const index = this.plugin.settings.assistantPresets.findIndex(a => a.id === assistant.id);
+            if (index > -1) {
+              this.plugin.settings.assistantPresets.splice(index, 1);
+              // 如果删除的是当前助手，切换到第一个助手
+              if (this.plugin.settings.currentAssistantId === assistant.id) {
+                this.plugin.settings.currentAssistantId = this.plugin.settings.assistantPresets[0].id;
+              }
+              await this.plugin.saveSettings();
+              renderAssistantPresets();
+            }
+          });
+        }
+
+        // 系统提示词（可编辑）
+        const promptLabel = assistantItem.createEl("label", {
+          text: this.plugin.t("assistantSystemPrompt") + ":",
+        });
+        promptLabel.style.display = "block";
+        promptLabel.style.fontSize = "12px";
+        promptLabel.style.color = "var(--text-muted)";
+        promptLabel.style.marginBottom = "4px";
+
+        const promptTextarea = assistantItem.createEl("textarea", {
+          value: assistant.systemPrompt,
+        });
+        promptTextarea.style.width = "100%";
+        promptTextarea.style.minHeight = "80px";
+        promptTextarea.style.padding = "8px";
+        promptTextarea.style.border = "1px solid var(--background-modifier-border)";
+        promptTextarea.style.borderRadius = "6px";
+        promptTextarea.style.background = "var(--background-primary)";
+        promptTextarea.style.color = "var(--text-normal)";
+        promptTextarea.style.resize = "vertical";
+        promptTextarea.style.fontFamily = "var(--font-monospace)";
+        promptTextarea.style.fontSize = "12px";
+
+        // 使用防抖，避免频繁保存
+        let saveTimeout: NodeJS.Timeout | null = null;
+        promptTextarea.addEventListener("input", () => {
+          // 实时更新到内存
+          assistant.systemPrompt = promptTextarea.value;
+
+          // 防抖保存到磁盘
+          if (saveTimeout) {
+            clearTimeout(saveTimeout);
+          }
+          saveTimeout = setTimeout(async () => {
+            await this.plugin.saveSettings();
+            // 闪烁边框表示已保存
+            promptTextarea.style.borderColor = "var(--color-green)";
+            setTimeout(() => {
+              promptTextarea.style.borderColor = "var(--background-modifier-border)";
+            }, 500);
+          }, 500);
+        });
+      }
+    };
+
+    renderAssistantPresets();
+
+    // 添加新助手按钮
+    new Setting(containerEl)
+      .addButton((button) =>
+        button
+          .setButtonText(this.plugin.t("assistantAddNew"))
+          .setCta()
+          .onClick(async () => {
+            const newAssistant: AssistantPreset = {
+              id: `assistant_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              name: this.plugin.t("assistantDefaultName"),
+              systemPrompt: this.plugin.t("assistantDefaultPrompt"),
+            };
+            this.plugin.settings.assistantPresets.push(newAssistant);
+            await this.plugin.saveSettings();
+            renderAssistantPresets();
           })
       );
 
