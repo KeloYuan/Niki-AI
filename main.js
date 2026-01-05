@@ -76,6 +76,13 @@ var I18N = {
     settingClaudeCommandName: "Claude command",
     settingClaudeCommandDesc: "\u7528\u4E8E\u8FD0\u884C Claude Code \u7684\u547D\u4EE4\u3002\u4F7F\u7528 {prompt} \u5185\u8054\u63D0\u793A\u8BCD\uFF0C\u6216\u7559\u7A7A\u4EE5\u901A\u8FC7 stdin \u53D1\u9001\u3002",
     settingClaudeCommandPlaceholder: 'claude -p "{prompt}"',
+    settingClaudePathName: "Claude path",
+    settingClaudePathDesc: "Claude CLI \u53EF\u6267\u884C\u6587\u4EF6\u7684\u5B8C\u6574\u8DEF\u5F84\uFF08Windows \u53EF\u586B claude.cmd\uFF09\u3002\u7559\u7A7A\u5219\u81EA\u52A8\u68C0\u6D4B\u3002",
+    settingNodePathName: "Node path",
+    settingNodePathDesc: "Node \u53EF\u6267\u884C\u6587\u4EF6\u7684\u5B8C\u6574\u8DEF\u5F84\uFF08Windows \u53EF\u586B node.exe\uFF09\u3002\u7559\u7A7A\u5219\u81EA\u52A8\u68C0\u6D4B\u3002",
+    pathHelpButton: "\u5E2E\u52A9",
+    pathHelpTitle: "\u8DEF\u5F84\u5E2E\u52A9",
+    pathHelpBody: "\u5982\u4F55\u627E\u5230 Claude / Node \u7684\u5B8C\u6574\u8DEF\u5F84\uFF1A\n\nWindows\uFF08\u63A8\u8350\uFF09:\n1) \u6253\u5F00 cmd \u6216 PowerShell\n2) \u8FD0\u884C: where claude\n3) \u8FD0\u884C: where node\n\n\u5982\u679C\u6CA1\u6709\u8F93\u51FA\uFF0C\u53EF\u5C1D\u8BD5\u4EE5\u4E0B\u5E38\u89C1\u8DEF\u5F84\uFF1A\n- %APPDATA%\\npm\\claude.cmd\n- C:\\Program Files\\nodejs\\node.exe\n- C:\\Program Files (x86)\\nodejs\\node.exe\n- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n- %NVM_SYMLINK%\\node.exe\n\nmacOS/Linux:\n- \u8FD0\u884C: which claude\n- \u8FD0\u884C: which node",
     settingDefaultPromptName: "Default prompt",
     settingDefaultPromptDesc: "\u6BCF\u6B21\u8BF7\u6C42\u524D\u81EA\u52A8\u9644\u52A0\u7684\u7CFB\u7EDF\u63D0\u793A\u8BCD\u3002",
     settingDefaultPromptPlaceholder: "\u4F60\u662F\u5D4C\u5165 Obsidian \u7684 Claude Code...",
@@ -123,6 +130,13 @@ var I18N = {
     settingClaudeCommandName: "Claude command",
     settingClaudeCommandDesc: "Command to run Claude Code. Use {prompt} to inline the prompt, or leave it out to send via stdin.",
     settingClaudeCommandPlaceholder: 'claude -p "{prompt}"',
+    settingClaudePathName: "Claude path",
+    settingClaudePathDesc: "Full path to the Claude CLI executable (on Windows, use claude.cmd). Leave empty to auto-detect.",
+    settingNodePathName: "Node path",
+    settingNodePathDesc: "Full path to the Node executable (on Windows, use node.exe). Leave empty to auto-detect.",
+    pathHelpButton: "Help",
+    pathHelpTitle: "Path Help",
+    pathHelpBody: "How to find the full paths for Claude / Node:\n\nWindows (recommended):\n1) Open cmd or PowerShell\n2) Run: where claude\n3) Run: where node\n\nIf there is no output, try these common locations:\n- %APPDATA%\\npm\\claude.cmd\n- C:\\Program Files\\nodejs\\node.exe\n- C:\\Program Files (x86)\\nodejs\\node.exe\n- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n- %NVM_SYMLINK%\\node.exe\n\nmacOS/Linux:\n- Run: which claude\n- Run: which node",
     settingDefaultPromptName: "Default prompt",
     settingDefaultPromptDesc: "Prepended to every request.",
     settingDefaultPromptPlaceholder: "You are Claude Code embedded in Obsidian...",
@@ -147,6 +161,8 @@ function format(template, vars) {
 }
 var DEFAULT_SETTINGS = {
   claudeCommand: "",
+  claudePath: "",
+  nodePath: "",
   defaultPrompt: "You are Niki AI embedded in Obsidian (powered by Claude Code). Help me edit Markdown notes.\nWhen you propose changes, be explicit and keep the style consistent.",
   workingDir: "",
   language: "zh-CN",
@@ -586,11 +602,12 @@ ${userInput}`);
   }
   runClaudeCommand(prompt) {
     const configured = this.plugin.settings.claudeCommand.trim();
+    const preferredClaude = this.plugin.settings.claudePath.trim();
     const normalized = normalizeCommand(configured);
-    const detectedClaude = configured ? "" : findClaudeBinary();
+    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude);
     const basePath = this.getVaultBasePath();
     const cwd = this.plugin.settings.workingDir.trim() || basePath || void 0;
-    const env = buildEnv();
+    const env = buildEnv(this.plugin.settings.nodePath.trim());
     const timeoutMs = 12e4;
     if (normalized) {
       const hasPlaceholder = normalized.includes("{prompt}");
@@ -636,7 +653,7 @@ ${userInput}`);
         });
       }
       const useNodeShim = isNodeScript(detectedClaude);
-      const systemNode = useNodeShim ? findNodeBinary() : "";
+      const systemNode = useNodeShim ? findNodeBinary(this.plugin.settings.nodePath.trim()) : "";
       const command = useNodeShim ? systemNode || process.execPath : detectedClaude;
       const args = useNodeShim ? [detectedClaude] : [];
       return new Promise((resolve, reject) => {
@@ -1206,7 +1223,13 @@ function normalizeCommand(command) {
   }
   return trimmed;
 }
-function findClaudeBinary() {
+function findClaudeBinary(preferredPath) {
+  if (preferredPath) {
+    const candidate = preferredPath.trim();
+    if (candidate && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
   const home = import_os.default.homedir();
   const isWindows = process.platform === "win32";
   if (isWindows) {
@@ -1235,18 +1258,28 @@ function findClaudeBinary() {
   }
   return "";
 }
-function buildEnv() {
+function buildEnv(preferredNodePath) {
   const env = { ...process.env };
   const home = import_os.default.homedir();
   env.HOME = env.HOME || home;
-  const nodeBinary = findNodeBinary();
+  const nodeBinary = findNodeBinary(preferredNodePath);
   const nodeDir = nodeBinary ? import_path.default.dirname(nodeBinary) : "";
   const isWindows = process.platform === "win32";
   let extra = [];
   if (isWindows) {
     const appData = process.env.APPDATA || import_path.default.join(home, "AppData", "Roaming");
+    const localAppData = process.env.LOCALAPPDATA || import_path.default.join(home, "AppData", "Local");
+    const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+    const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+    const nvmHome = process.env.NVM_HOME;
+    const nvmSymlink = process.env.NVM_SYMLINK;
     extra = [
-      import_path.default.join(appData, "npm")
+      import_path.default.join(appData, "npm"),
+      import_path.default.join(programFiles, "nodejs"),
+      import_path.default.join(programFilesX86, "nodejs"),
+      import_path.default.join(localAppData, "Programs", "nodejs"),
+      ...((nvmSymlink ? [nvmSymlink] : [])),
+      ...((nvmHome ? [nvmHome] : []))
     ];
   } else {
     extra = [
@@ -1298,9 +1331,27 @@ function isNodeScript(target) {
     return false;
   }
 }
-function findNodeBinary() {
+function findNodeBinary(preferredPath) {
+  if (preferredPath) {
+    const candidate = preferredPath.trim();
+    if (candidate && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
   const home = import_os.default.homedir();
-  const direct = [
+  const isWindows = process.platform === "win32";
+  const localAppData = process.env.LOCALAPPDATA || import_path.default.join(home, "AppData", "Local");
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+  const nvmHome = process.env.NVM_HOME;
+  const nvmSymlink = process.env.NVM_SYMLINK;
+  const direct = isWindows ? [
+    nvmSymlink ? import_path.default.join(nvmSymlink, "node.exe") : "",
+    nvmHome ? import_path.default.join(nvmHome, "node.exe") : "",
+    import_path.default.join(programFiles, "nodejs", "node.exe"),
+    import_path.default.join(programFilesX86, "nodejs", "node.exe"),
+    import_path.default.join(localAppData, "Programs", "nodejs", "node.exe")
+  ].filter(Boolean) : [
     import_path.default.join(home, ".volta", "bin", "node"),
     import_path.default.join(home, ".asdf", "shims", "node"),
     import_path.default.join(home, ".nvm", "versions", "node", "bin", "node"),
@@ -1313,16 +1364,33 @@ function findNodeBinary() {
       return candidate;
     }
   }
-  const nvmRoot = import_path.default.join(home, ".nvm", "versions", "node");
-  try {
-    const versions = import_fs.default.readdirSync(nvmRoot).map((entry) => import_path.default.join(nvmRoot, entry, "bin", "node")).filter((candidate) => isExecutable(candidate)).sort();
-    if (versions.length > 0) {
-      return versions[versions.length - 1];
+  if (!isWindows) {
+    const nvmRoot = import_path.default.join(home, ".nvm", "versions", "node");
+    try {
+      const versions = import_fs.default.readdirSync(nvmRoot).map((entry) => import_path.default.join(nvmRoot, entry, "bin", "node")).filter((candidate) => isExecutable(candidate)).sort();
+      if (versions.length > 0) {
+        return versions[versions.length - 1];
+      }
+    } catch (e) {
     }
-  } catch (e) {
   }
   return "";
 }
+var PathHelpModal = class extends import_obsidian.Modal {
+  constructor(app, plugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+  onOpen() {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h3", { text: this.plugin.t("pathHelpTitle") });
+    contentEl.createEl("pre", { text: this.plugin.t("pathHelpBody") });
+  }
+  onClose() {
+    this.contentEl.empty();
+  }
+};
 var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -1343,6 +1411,22 @@ var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
       (text) => text.setPlaceholder(this.plugin.t("settingClaudeCommandPlaceholder")).setValue(this.plugin.settings.claudeCommand).onChange(async (value) => {
         this.plugin.settings.claudeCommand = value;
         await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName(this.plugin.t("settingClaudePathName")).setDesc(this.plugin.t("settingClaudePathDesc")).addText(
+      (text) => text.setPlaceholder("C:\\Users\\<name>\\AppData\\Roaming\\npm\\claude.cmd").setValue(this.plugin.settings.claudePath).onChange(async (value) => {
+        this.plugin.settings.claudePath = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName(this.plugin.t("settingNodePathName")).setDesc(this.plugin.t("settingNodePathDesc")).addText(
+      (text) => text.setPlaceholder("C:\\Program Files\\nodejs\\node.exe").setValue(this.plugin.settings.nodePath).onChange(async (value) => {
+        this.plugin.settings.nodePath = value;
+        await this.plugin.saveSettings();
+      })
+    ).addButton(
+      (button) => button.setButtonText(this.plugin.t("pathHelpButton")).onClick(() => {
+        new PathHelpModal(this.app, this.plugin).open();
       })
     );
     new import_obsidian.Setting(containerEl).setName(this.plugin.t("settingDefaultPromptName")).setDesc(this.plugin.t("settingDefaultPromptDesc")).addTextArea(

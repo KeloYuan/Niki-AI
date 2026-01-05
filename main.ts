@@ -2,6 +2,7 @@ import {
   App,
   ItemView,
   MarkdownRenderer,
+  Modal,
   Notice,
   Plugin,
   PluginSettingTab,
@@ -59,6 +60,29 @@ const I18N = {
     settingClaudeCommandDesc:
       "用于运行 Claude Code 的命令。使用 {prompt} 内联提示词，或留空以通过 stdin 发送。",
     settingClaudeCommandPlaceholder: "claude -p \"{prompt}\"",
+    settingClaudePathName: "Claude path",
+    settingClaudePathDesc:
+      "Claude CLI 可执行文件的完整路径（Windows 可填 claude.cmd）。留空则自动检测。",
+    settingNodePathName: "Node path",
+    settingNodePathDesc:
+      "Node 可执行文件的完整路径（Windows 可填 node.exe）。留空则自动检测。",
+    pathHelpButton: "帮助",
+    pathHelpTitle: "路径帮助",
+    pathHelpBody:
+      "如何找到 Claude / Node 的完整路径：\n\n" +
+      "Windows（推荐）:\n" +
+      "1) 打开 cmd 或 PowerShell\n" +
+      "2) 运行: where claude\n" +
+      "3) 运行: where node\n\n" +
+      "如果没有输出，可尝试以下常见路径：\n" +
+      "- %APPDATA%\\npm\\claude.cmd\n" +
+      "- C:\\Program Files\\nodejs\\node.exe\n" +
+      "- C:\\Program Files (x86)\\nodejs\\node.exe\n" +
+      "- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n" +
+      "- %NVM_SYMLINK%\\node.exe\n\n" +
+      "macOS/Linux:\n" +
+      "- 运行: which claude\n" +
+      "- 运行: which node",
     settingDefaultPromptName: "Default prompt",
     settingDefaultPromptDesc: "每次请求前自动附加的系统提示词。",
     settingDefaultPromptPlaceholder: "你是嵌入 Obsidian 的 Claude Code...",
@@ -110,6 +134,29 @@ const I18N = {
     settingClaudeCommandDesc:
       "Command to run Claude Code. Use {prompt} to inline the prompt, or leave it out to send via stdin.",
     settingClaudeCommandPlaceholder: "claude -p \"{prompt}\"",
+    settingClaudePathName: "Claude path",
+    settingClaudePathDesc:
+      "Full path to the Claude CLI executable (on Windows, use claude.cmd). Leave empty to auto-detect.",
+    settingNodePathName: "Node path",
+    settingNodePathDesc:
+      "Full path to the Node executable (on Windows, use node.exe). Leave empty to auto-detect.",
+    pathHelpButton: "Help",
+    pathHelpTitle: "Path Help",
+    pathHelpBody:
+      "How to find the full paths for Claude / Node:\n\n" +
+      "Windows (recommended):\n" +
+      "1) Open cmd or PowerShell\n" +
+      "2) Run: where claude\n" +
+      "3) Run: where node\n\n" +
+      "If there is no output, try these common locations:\n" +
+      "- %APPDATA%\\npm\\claude.cmd\n" +
+      "- C:\\Program Files\\nodejs\\node.exe\n" +
+      "- C:\\Program Files (x86)\\nodejs\\node.exe\n" +
+      "- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n" +
+      "- %NVM_SYMLINK%\\node.exe\n\n" +
+      "macOS/Linux:\n" +
+      "- Run: which claude\n" +
+      "- Run: which node",
     settingDefaultPromptName: "Default prompt",
     settingDefaultPromptDesc: "Prepended to every request.",
     settingDefaultPromptPlaceholder: "You are Claude Code embedded in Obsidian...",
@@ -170,6 +217,8 @@ type ChatTopic = {
 
 interface ClaudeSidebarSettings {
   claudeCommand: string;
+  claudePath: string;
+  nodePath: string;
   defaultPrompt: string;
   workingDir: string;
   language: Language;
@@ -181,6 +230,8 @@ interface ClaudeSidebarSettings {
 
 const DEFAULT_SETTINGS: ClaudeSidebarSettings = {
   claudeCommand: "",
+  claudePath: "",
+  nodePath: "",
   defaultPrompt:
     "You are Niki AI embedded in Obsidian (powered by Claude Code). Help me edit Markdown notes.\n" +
     "When you propose changes, be explicit and keep the style consistent.",
@@ -705,12 +756,13 @@ class ClaudeSidebarView extends ItemView {
 
   runClaudeCommand(prompt: string): Promise<string> {
     const configured = this.plugin.settings.claudeCommand.trim();
+    const preferredClaude = this.plugin.settings.claudePath.trim();
     const normalized = normalizeCommand(configured);
-    const detectedClaude = configured ? "" : findClaudeBinary();
+    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude);
 
     const basePath = this.getVaultBasePath();
     const cwd = this.plugin.settings.workingDir.trim() || basePath || undefined;
-    const env = buildEnv();
+    const env = buildEnv(this.plugin.settings.nodePath.trim());
     const timeoutMs = 120000;
 
     if (normalized) {
@@ -765,7 +817,9 @@ class ClaudeSidebarView extends ItemView {
       }
 
       const useNodeShim = isNodeScript(detectedClaude);
-      const systemNode = useNodeShim ? findNodeBinary() : "";
+      const systemNode = useNodeShim
+        ? findNodeBinary(this.plugin.settings.nodePath.trim())
+        : "";
       const command = useNodeShim ? systemNode || process.execPath : detectedClaude;
       const args = useNodeShim ? [detectedClaude] : [];
       return new Promise((resolve, reject) => {
@@ -1460,7 +1514,13 @@ function normalizeCommand(command: string): string {
   return trimmed;
 }
 
-function findClaudeBinary(): string {
+function findClaudeBinary(preferredPath?: string): string {
+  if (preferredPath) {
+    const candidate = preferredPath.trim();
+    if (candidate && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
   const home = os.homedir();
   const isWindows = process.platform === "win32";
 
@@ -1494,11 +1554,11 @@ function findClaudeBinary(): string {
   return "";
 }
 
-function buildEnv(): NodeJS.ProcessEnv {
+function buildEnv(preferredNodePath?: string): NodeJS.ProcessEnv {
   const env = { ...process.env };
   const home = os.homedir();
   env.HOME = env.HOME || home;
-  const nodeBinary = findNodeBinary();
+  const nodeBinary = findNodeBinary(preferredNodePath);
   const nodeDir = nodeBinary ? path.dirname(nodeBinary) : "";
 
   const isWindows = process.platform === "win32";
@@ -1507,8 +1567,18 @@ function buildEnv(): NodeJS.ProcessEnv {
   if (isWindows) {
     // Windows 特定路径
     const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+    const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+    const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+    const nvmHome = process.env.NVM_HOME;
+    const nvmSymlink = process.env.NVM_SYMLINK;
     extra = [
       path.join(appData, "npm"),
+      path.join(programFiles, "nodejs"),
+      path.join(programFilesX86, "nodejs"),
+      path.join(localAppData, "Programs", "nodejs"),
+      ...(nvmSymlink ? [nvmSymlink] : []),
+      ...(nvmHome ? [nvmHome] : []),
     ];
   } else {
     // Unix-like 系统 (macOS/Linux) 路径
@@ -1568,37 +1638,79 @@ function isNodeScript(target: string): boolean {
   }
 }
 
-function findNodeBinary(): string {
+function findNodeBinary(preferredPath?: string): string {
+  if (preferredPath) {
+    const candidate = preferredPath.trim();
+    if (candidate && isExecutable(candidate)) {
+      return candidate;
+    }
+  }
   const home = os.homedir();
-  const direct = [
-    path.join(home, ".volta", "bin", "node"),
-    path.join(home, ".asdf", "shims", "node"),
-    path.join(home, ".nvm", "versions", "node", "bin", "node"),
-    "/opt/homebrew/bin/node",
-    "/usr/local/bin/node",
-    "/usr/bin/node",
-  ];
+  const isWindows = process.platform === "win32";
+  const localAppData = process.env.LOCALAPPDATA || path.join(home, "AppData", "Local");
+  const programFiles = process.env.ProgramFiles || "C:\\Program Files";
+  const programFilesX86 = process.env["ProgramFiles(x86)"] || "C:\\Program Files (x86)";
+  const nvmHome = process.env.NVM_HOME;
+  const nvmSymlink = process.env.NVM_SYMLINK;
+  const direct = isWindows
+    ? [
+        nvmSymlink ? path.join(nvmSymlink, "node.exe") : "",
+        nvmHome ? path.join(nvmHome, "node.exe") : "",
+        path.join(programFiles, "nodejs", "node.exe"),
+        path.join(programFilesX86, "nodejs", "node.exe"),
+        path.join(localAppData, "Programs", "nodejs", "node.exe"),
+      ].filter(Boolean)
+    : [
+        path.join(home, ".volta", "bin", "node"),
+        path.join(home, ".asdf", "shims", "node"),
+        path.join(home, ".nvm", "versions", "node", "bin", "node"),
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+        "/usr/bin/node",
+      ];
   for (const candidate of direct) {
     if (isExecutable(candidate)) {
       return candidate;
     }
   }
 
-  const nvmRoot = path.join(home, ".nvm", "versions", "node");
-  try {
-    const versions = fs
-      .readdirSync(nvmRoot)
-      .map((entry) => path.join(nvmRoot, entry, "bin", "node"))
-      .filter((candidate) => isExecutable(candidate))
-      .sort();
-    if (versions.length > 0) {
-      return versions[versions.length - 1];
+  if (!isWindows) {
+    const nvmRoot = path.join(home, ".nvm", "versions", "node");
+    try {
+      const versions = fs
+        .readdirSync(nvmRoot)
+        .map((entry) => path.join(nvmRoot, entry, "bin", "node"))
+        .filter((candidate) => isExecutable(candidate))
+        .sort();
+      if (versions.length > 0) {
+        return versions[versions.length - 1];
+      }
+    } catch {
+      // ignore
     }
-  } catch {
-    // ignore
   }
 
   return "";
+}
+
+class PathHelpModal extends Modal {
+  plugin: ClaudeSidebarPlugin;
+
+  constructor(app: App, plugin: ClaudeSidebarPlugin) {
+    super(app);
+    this.plugin = plugin;
+  }
+
+  onOpen(): void {
+    const { contentEl } = this;
+    contentEl.empty();
+    contentEl.createEl("h3", { text: this.plugin.t("pathHelpTitle") });
+    contentEl.createEl("pre", { text: this.plugin.t("pathHelpBody") });
+  }
+
+  onClose(): void {
+    this.contentEl.empty();
+  }
 }
 
 class ClaudeSidebarSettingTab extends PluginSettingTab {
@@ -1641,6 +1753,37 @@ class ClaudeSidebarSettingTab extends PluginSettingTab {
             this.plugin.settings.claudeCommand = value;
             await this.plugin.saveSettings();
           })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settingClaudePathName"))
+      .setDesc(this.plugin.t("settingClaudePathDesc"))
+      .addText((text) =>
+        text
+          .setPlaceholder("C:\\Users\\<name>\\AppData\\Roaming\\npm\\claude.cmd")
+          .setValue(this.plugin.settings.claudePath)
+          .onChange(async (value) => {
+            this.plugin.settings.claudePath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settingNodePathName"))
+      .setDesc(this.plugin.t("settingNodePathDesc"))
+      .addText((text) =>
+        text
+          .setPlaceholder("C:\\Program Files\\nodejs\\node.exe")
+          .setValue(this.plugin.settings.nodePath)
+          .onChange(async (value) => {
+            this.plugin.settings.nodePath = value;
+            await this.plugin.saveSettings();
+          })
+      )
+      .addButton((button) =>
+        button.setButtonText(this.plugin.t("pathHelpButton")).onClick(() => {
+          new PathHelpModal(this.app, this.plugin).open();
+        })
       );
 
     new Setting(containerEl)
