@@ -3,7 +3,7 @@
   "name": "Niki AI",
   "version": "3.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Chat with Claude Code in a sidebar and edit notes from Obsidian.",
+  "description": "Chat with Claude Code in a sidebar and edit notes with AI assistance.",
   "author": "小元Niki（谢旺涛）",
   "isDesktopOnly": true
 }
