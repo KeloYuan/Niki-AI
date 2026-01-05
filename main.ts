@@ -93,6 +93,13 @@ const I18N = {
     undoChanges: "撤销修改",
     undoSuccess: "已撤销 {path} 的修改",
     undoFailed: "撤销失败：{message}",
+    aboutSectionName: "关于本插件",
+    aboutVersion: "版本",
+    aboutAuthor: "作者",
+    aboutLicense: "开源协议",
+    aboutRepository: "代码仓库",
+    aboutDescription: "简介",
+    aboutDescriptionText: "Niki AI 是一个 Obsidian 插件，集成了 Claude Code CLI 作为对话式 AI 助手。你可以在侧边栏与 Claude 聊天，包含当前笔记内容作为上下文，并将回复直接插入到笔记中。",
   },
   "en-US": {
     openSidebarCommand: "Open Niki AI Sidebar",
@@ -168,6 +175,13 @@ const I18N = {
     undoChanges: "Undo changes",
     undoSuccess: "Undone changes to {path}",
     undoFailed: "Undo failed: {message}",
+    aboutSectionName: "About",
+    aboutVersion: "Version",
+    aboutAuthor: "Author",
+    aboutLicense: "License",
+    aboutRepository: "Repository",
+    aboutDescription: "Description",
+    aboutDescriptionText: "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes.",
   },
 } as const;
 
@@ -1828,6 +1842,53 @@ class ClaudeSidebarSettingTab extends PluginSettingTab {
             await this.plugin.saveSettings();
           })
       );
+
+    // 关于本插件
+    containerEl.createEl("h3", {
+      text: this.plugin.t("aboutSectionName"),
+      cls: "claude-code-about-header"
+    });
+
+    const aboutDiv = containerEl.createDiv("claude-code-about-section");
+
+    // 版本
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutVersion")}: ${this.plugin.manifest.version}`,
+    });
+
+    // 作者
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutAuthor")}: ${this.plugin.manifest.author}`,
+    });
+
+    // 开源协议
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutLicense")}: MIT`,
+    });
+
+    // 代码仓库
+    const repoDiv = aboutDiv.createEl("p", { cls: "claude-code-about-item" });
+    repoDiv.createSpan({
+      text: `${this.plugin.t("aboutRepository")}: `,
+    });
+    const githubLink = repoDiv.createEl("a", {
+      text: "GitHub",
+      href: "https://github.com/KeloYuan/NIki-AI",
+      cls: "claude-code-about-link"
+    });
+    githubLink.setAttribute("target", "_blank");
+    repoDiv.createSpan({ text: " / " });
+    const gitcodeLink = repoDiv.createEl("a", {
+      text: "GitCode",
+      href: "https://gitcode.com/KeloYuan/NIki-AI",
+      cls: "claude-code-about-link"
+    });
+    gitcodeLink.setAttribute("target", "_blank");
+
+    // 简介
+    aboutDiv.createEl("p", { cls: "claude-code-about-desc" }).createEl("span", {
+      text: this.plugin.t("aboutDescriptionText"),
+    });
   }
 }
 

@@ -92,7 +92,14 @@ var I18N = {
     settingLanguageDesc: "\u754C\u9762\u663E\u793A\u8BED\u8A00\u3002",
     undoChanges: "\u64A4\u9500\u4FEE\u6539",
     undoSuccess: "\u5DF2\u64A4\u9500 {path} \u7684\u4FEE\u6539",
-    undoFailed: "\u64A4\u9500\u5931\u8D25\uFF1A{message}"
+    undoFailed: "\u64A4\u9500\u5931\u8D25\uFF1A{message}",
+    aboutSectionName: "\u5173\u4E8E\u672C\u63D2\u4EF6",
+    aboutVersion: "\u7248\u672C",
+    aboutAuthor: "\u4F5C\u8005",
+    aboutLicense: "\u5F00\u6E90\u534F\u8BAE",
+    aboutRepository: "\u4EE3\u7801\u4ED3\u5E93",
+    aboutDescription: "\u7B80\u4ECB",
+    aboutDescriptionText: "Niki AI \u662F\u4E00\u4E2A Obsidian \u63D2\u4EF6\uFF0C\u96C6\u6210\u4E86 Claude Code CLI \u4F5C\u4E3A\u5BF9\u8BDD\u5F0F AI \u52A9\u624B\u3002\u4F60\u53EF\u4EE5\u5728\u4FA7\u8FB9\u680F\u4E0E Claude \u804A\u5929\uFF0C\u5305\u542B\u5F53\u524D\u7B14\u8BB0\u5185\u5BB9\u4F5C\u4E3A\u4E0A\u4E0B\u6587\uFF0C\u5E76\u5C06\u56DE\u590D\u76F4\u63A5\u63D2\u5165\u5230\u7B14\u8BB0\u4E2D\u3002"
   },
   "en-US": {
     openSidebarCommand: "Open Niki AI Sidebar",
@@ -146,7 +153,14 @@ var I18N = {
     settingLanguageDesc: "Language for the UI.",
     undoChanges: "Undo changes",
     undoSuccess: "Undone changes to {path}",
-    undoFailed: "Undo failed: {message}"
+    undoFailed: "Undo failed: {message}",
+    aboutSectionName: "About",
+    aboutVersion: "Version",
+    aboutAuthor: "Author",
+    aboutLicense: "License",
+    aboutRepository: "Repository",
+    aboutDescription: "Description",
+    aboutDescriptionText: "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes."
   }
 };
 function t(language, key) {
@@ -1459,6 +1473,40 @@ var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
+    containerEl.createEl("h3", {
+      text: this.plugin.t("aboutSectionName"),
+      cls: "claude-code-about-header"
+    });
+    const aboutDiv = containerEl.createDiv("claude-code-about-section");
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutVersion")}: ${this.plugin.manifest.version}`
+    });
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutAuthor")}: ${this.plugin.manifest.author}`
+    });
+    aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
+      text: `${this.plugin.t("aboutLicense")}: MIT`
+    });
+    const repoDiv = aboutDiv.createEl("p", { cls: "claude-code-about-item" });
+    repoDiv.createSpan({
+      text: `${this.plugin.t("aboutRepository")}: `
+    });
+    const githubLink = repoDiv.createEl("a", {
+      text: "GitHub",
+      href: "https://github.com/KeloYuan/NIki-AI",
+      cls: "claude-code-about-link"
+    });
+    githubLink.setAttribute("target", "_blank");
+    repoDiv.createSpan({ text: " / " });
+    const gitcodeLink = repoDiv.createEl("a", {
+      text: "GitCode",
+      href: "https://gitcode.com/KeloYuan/NIki-AI",
+      cls: "claude-code-about-link"
+    });
+    gitcodeLink.setAttribute("target", "_blank");
+    aboutDiv.createEl("p", { cls: "claude-code-about-desc" }).createEl("span", {
+      text: this.plugin.t("aboutDescriptionText")
+    });
   }
 };
 function computeDiff(original, modified) {
