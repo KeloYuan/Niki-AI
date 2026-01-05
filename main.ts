@@ -40,6 +40,7 @@ const I18N = {
     noActiveNote: "当前没有可插入的笔记。",
     insertedInto: "已插入到 {path}",
     addedFile: "已添加: {name}",
+    unsupportedFileType: "不支持的文件类型。只支持文本文件（如 .md, .txt, .js 等）。",
     roleYou: "你",
     roleNiki: "Niki",
     viewChanges: "查看变更",
@@ -90,6 +91,7 @@ const I18N = {
     noActiveNote: "No active note to insert into.",
     insertedInto: "Inserted into {path}",
     addedFile: "Added: {name}",
+    unsupportedFileType: "Unsupported file type. Only text files are supported (e.g., .md, .txt, .js, etc.).",
     roleYou: "You",
     roleNiki: "Niki",
     viewChanges: "View changes",
@@ -374,6 +376,20 @@ class ClaudeSidebarView extends ItemView {
       this.inputEl.removeClass("claude-code-input-dragover");
     });
 
+    // 支持的文本文件扩展名
+    const TEXT_EXTENSIONS = new Set([
+      "md", "txt", "js", "ts", "jsx", "tsx", "py", "rs", "go", "java",
+      "c", "cpp", "h", "hpp", "cs", "php", "rb", "swift", "kt", "scala",
+      "json", "yaml", "yml", "toml", "xml", "html", "css", "scss", "less",
+      "sh", "bash", "zsh", "fish", "ps1", "sql", "graphql", "wsdl", "rss"
+    ]);
+
+    // 检查文件是否为文本类型
+    const isTextFile = (fileName: string): boolean => {
+      const ext = fileName.split('.').pop()?.toLowerCase();
+      return ext ? TEXT_EXTENSIONS.has(ext) : false;
+    };
+
     this.inputEl.addEventListener("drop", async (event) => {
       event.preventDefault();
       this.inputEl.removeClass("claude-code-input-dragover");
@@ -399,6 +415,12 @@ class ClaudeSidebarView extends ItemView {
             // Obsidian URI 编码的文件路径，需要解码
             const decodedPath = decodeURIComponent(filePath);
             console.log("Decoded path:", decodedPath);
+
+            // 检查是否为文本文件
+            if (!isTextFile(decodedPath)) {
+              new Notice(this.plugin.t("unsupportedFileType"));
+              return;
+            }
 
             // 尝试从路径中提取文件名
             const fileName = decodedPath.split('/').pop() || decodedPath;
@@ -440,6 +462,12 @@ class ClaudeSidebarView extends ItemView {
           console.log("Processing file:", filePath);
 
           if (!filePath) continue;
+
+          // 检查是否为文本文件
+          if (!isTextFile(file.name)) {
+            new Notice(this.plugin.t("unsupportedFileType"));
+            continue;
+          }
 
           // 尝试在 vault 中查找匹配的文件
           const vaultFile = this.app.vault.getMarkdownFiles().find((f) =>
@@ -1410,14 +1438,31 @@ function normalizeCommand(command: string): string {
 
 function findClaudeBinary(): string {
   const home = os.homedir();
-  const candidates = [
+  const isWindows = process.platform === "win32";
+
+  // Windows 特定路径
+  if (isWindows) {
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    const windowsCandidates = [
+      path.join(appData, "npm", "claude.cmd"),
+      path.join(appData, "npm", "claude"),
+    ];
+    for (const candidate of windowsCandidates) {
+      if (isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+  }
+
+  // Unix-like 系统 (macOS/Linux) 路径
+  const unixCandidates = [
     path.join(home, ".npm-global", "bin", "claude"),
     path.join(home, ".local", "bin", "claude"),
     "/opt/homebrew/bin/claude",
     "/usr/local/bin/claude",
     "/usr/bin/claude",
   ];
-  for (const candidate of candidates) {
+  for (const candidate of unixCandidates) {
     if (isExecutable(candidate)) {
       return candidate;
     }
@@ -1431,16 +1476,30 @@ function buildEnv(): NodeJS.ProcessEnv {
   env.HOME = env.HOME || home;
   const nodeBinary = findNodeBinary();
   const nodeDir = nodeBinary ? path.dirname(nodeBinary) : "";
-  const extra = [
-    path.join(home, ".npm-global", "bin"),
-    path.join(home, ".local", "bin"),
-    path.join(home, ".volta", "bin"),
-    path.join(home, ".asdf", "shims"),
-    path.join(home, ".nvm", "versions", "node"),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/usr/bin",
-  ];
+
+  const isWindows = process.platform === "win32";
+  let extra: string[] = [];
+
+  if (isWindows) {
+    // Windows 特定路径
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    extra = [
+      path.join(appData, "npm"),
+    ];
+  } else {
+    // Unix-like 系统 (macOS/Linux) 路径
+    extra = [
+      path.join(home, ".npm-global", "bin"),
+      path.join(home, ".local", "bin"),
+      path.join(home, ".volta", "bin"),
+      path.join(home, ".asdf", "shims"),
+      path.join(home, ".nvm", "versions", "node"),
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+    ];
+  }
+
   const currentPath = env.PATH || "";
   const parts = currentPath.split(path.delimiter).filter(Boolean);
   const merged = [...(nodeDir ? [nodeDir] : []), ...extra, ...parts];
@@ -1450,8 +1509,15 @@ function buildEnv(): NodeJS.ProcessEnv {
 
 function isExecutable(target: string): boolean {
   try {
-    fs.accessSync(target, fs.constants.X_OK);
-    return true;
+    // 在 Windows 上，只检查文件是否存在（.cmd, .exe 等）
+    // 在 Unix 系统上，检查文件是否可执行
+    if (process.platform === "win32") {
+      fs.accessSync(target, fs.constants.F_OK);
+      return true;
+    } else {
+      fs.accessSync(target, fs.constants.X_OK);
+      return true;
+    }
   } catch {
     return false;
   }

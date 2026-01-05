@@ -58,6 +58,7 @@ var I18N = {
     noActiveNote: "\u5F53\u524D\u6CA1\u6709\u53EF\u63D2\u5165\u7684\u7B14\u8BB0\u3002",
     insertedInto: "\u5DF2\u63D2\u5165\u5230 {path}",
     addedFile: "\u5DF2\u6DFB\u52A0: {name}",
+    unsupportedFileType: "\u4E0D\u652F\u6301\u7684\u6587\u4EF6\u7C7B\u578B\u3002\u53EA\u652F\u6301\u6587\u672C\u6587\u4EF6\uFF08\u5982 .md, .txt, .js \u7B49\uFF09\u3002",
     roleYou: "\u4F60",
     roleNiki: "Niki",
     viewChanges: "\u67E5\u770B\u53D8\u66F4",
@@ -104,6 +105,7 @@ var I18N = {
     noActiveNote: "No active note to insert into.",
     insertedInto: "Inserted into {path}",
     addedFile: "Added: {name}",
+    unsupportedFileType: "Unsupported file type. Only text files are supported (e.g., .md, .txt, .js, etc.).",
     roleYou: "You",
     roleNiki: "Niki",
     viewChanges: "View changes",
@@ -287,6 +289,51 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
     this.inputEl.addEventListener("dragleave", () => {
       this.inputEl.removeClass("claude-code-input-dragover");
     });
+    const TEXT_EXTENSIONS = /* @__PURE__ */ new Set([
+      "md",
+      "txt",
+      "js",
+      "ts",
+      "jsx",
+      "tsx",
+      "py",
+      "rs",
+      "go",
+      "java",
+      "c",
+      "cpp",
+      "h",
+      "hpp",
+      "cs",
+      "php",
+      "rb",
+      "swift",
+      "kt",
+      "scala",
+      "json",
+      "yaml",
+      "yml",
+      "toml",
+      "xml",
+      "html",
+      "css",
+      "scss",
+      "less",
+      "sh",
+      "bash",
+      "zsh",
+      "fish",
+      "ps1",
+      "sql",
+      "graphql",
+      "wsdl",
+      "rss"
+    ]);
+    const isTextFile = (fileName) => {
+      var _a;
+      const ext = (_a = fileName.split(".").pop()) == null ? void 0 : _a.toLowerCase();
+      return ext ? TEXT_EXTENSIONS.has(ext) : false;
+    };
     this.inputEl.addEventListener("drop", async (event) => {
       event.preventDefault();
       this.inputEl.removeClass("claude-code-input-dragover");
@@ -305,6 +352,10 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
           if (filePath) {
             const decodedPath = decodeURIComponent(filePath);
             console.log("Decoded path:", decodedPath);
+            if (!isTextFile(decodedPath)) {
+              new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
+              return;
+            }
             const fileName = decodedPath.split("/").pop() || decodedPath;
             const file = this.app.vault.getMarkdownFiles().find(
               (f) => f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
@@ -337,6 +388,10 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
           console.log("Processing file:", filePath);
           if (!filePath)
             continue;
+          if (!isTextFile(file.name)) {
+            new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
+            continue;
+          }
           const vaultFile = this.app.vault.getMarkdownFiles().find(
             (f) => filePath.endsWith(f.path) || f.path.endsWith(filePath) || f.basename === file.name.replace(/\.[^/.]+$/, "")
           );
@@ -1132,14 +1187,27 @@ function normalizeCommand(command) {
 }
 function findClaudeBinary() {
   const home = import_os.default.homedir();
-  const candidates = [
+  const isWindows = process.platform === "win32";
+  if (isWindows) {
+    const appData = process.env.APPDATA || import_path.default.join(home, "AppData", "Roaming");
+    const windowsCandidates = [
+      import_path.default.join(appData, "npm", "claude.cmd"),
+      import_path.default.join(appData, "npm", "claude")
+    ];
+    for (const candidate of windowsCandidates) {
+      if (isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+  }
+  const unixCandidates = [
     import_path.default.join(home, ".npm-global", "bin", "claude"),
     import_path.default.join(home, ".local", "bin", "claude"),
     "/opt/homebrew/bin/claude",
     "/usr/local/bin/claude",
     "/usr/bin/claude"
   ];
-  for (const candidate of candidates) {
+  for (const candidate of unixCandidates) {
     if (isExecutable(candidate)) {
       return candidate;
     }
@@ -1152,16 +1220,25 @@ function buildEnv() {
   env.HOME = env.HOME || home;
   const nodeBinary = findNodeBinary();
   const nodeDir = nodeBinary ? import_path.default.dirname(nodeBinary) : "";
-  const extra = [
-    import_path.default.join(home, ".npm-global", "bin"),
-    import_path.default.join(home, ".local", "bin"),
-    import_path.default.join(home, ".volta", "bin"),
-    import_path.default.join(home, ".asdf", "shims"),
-    import_path.default.join(home, ".nvm", "versions", "node"),
-    "/opt/homebrew/bin",
-    "/usr/local/bin",
-    "/usr/bin"
-  ];
+  const isWindows = process.platform === "win32";
+  let extra = [];
+  if (isWindows) {
+    const appData = process.env.APPDATA || import_path.default.join(home, "AppData", "Roaming");
+    extra = [
+      import_path.default.join(appData, "npm")
+    ];
+  } else {
+    extra = [
+      import_path.default.join(home, ".npm-global", "bin"),
+      import_path.default.join(home, ".local", "bin"),
+      import_path.default.join(home, ".volta", "bin"),
+      import_path.default.join(home, ".asdf", "shims"),
+      import_path.default.join(home, ".nvm", "versions", "node"),
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/usr/bin"
+    ];
+  }
   const currentPath = env.PATH || "";
   const parts = currentPath.split(import_path.default.delimiter).filter(Boolean);
   const merged = [...nodeDir ? [nodeDir] : [], ...extra, ...parts];
@@ -1170,8 +1247,13 @@ function buildEnv() {
 }
 function isExecutable(target) {
   try {
-    import_fs.default.accessSync(target, import_fs.default.constants.X_OK);
-    return true;
+    if (process.platform === "win32") {
+      import_fs.default.accessSync(target, import_fs.default.constants.F_OK);
+      return true;
+    } else {
+      import_fs.default.accessSync(target, import_fs.default.constants.X_OK);
+      return true;
+    }
   } catch (e) {
     return false;
   }
