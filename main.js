@@ -1073,9 +1073,10 @@ ${content.trim()}
       const icon = tag.createSpan({ cls: "claude-code-mention-icon" });
       icon.setText("@");
       const name = tag.createSpan({
-        text: file.basename,
+        text: file.path,
         cls: "claude-code-mention-name"
       });
+      name.setAttribute("title", file.path);
       const removeBtn = tag.createSpan({
         text: "\xD7",
         cls: "claude-code-mention-remove"
