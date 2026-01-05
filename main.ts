@@ -473,14 +473,11 @@ class ClaudeSidebarView extends ItemView {
                 const decodedPath = decodeURIComponent(filePath);
                 console.log("Obsidian file path:", decodedPath);
 
-                if (!isTextFile(decodedPath)) {
-                  new Notice(this.plugin.t("unsupportedFileType"));
-                  continue;
-                }
-
+                // Obsidian URI 中的 file 参数只是 basename（不含扩展名）
+                // 直接在 vault 中查找，不需要检查扩展名
                 const fileName = decodedPath.split('/').pop() || decodedPath;
                 const file = this.app.vault.getMarkdownFiles().find((f) =>
-                  f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+                  f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
                 );
 
                 if (file) {
@@ -488,6 +485,20 @@ class ClaudeSidebarView extends ItemView {
                   new Notice(this.plugin.tf("addedFile", { name: file.basename }));
                   return;
                 }
+
+                // 如果在 markdown 文件中找不到，尝试其他文本文件
+                const allFiles = this.app.vault.getFiles();
+                const textFile = allFiles.find((f) =>
+                  f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
+                );
+
+                if (textFile && isTextFile(textFile.path)) {
+                  this.addMentionedFile(textFile);
+                  new Notice(this.plugin.tf("addedFile", { name: textFile.basename }));
+                  return;
+                }
+
+                console.log("File not found in vault:", decodedPath);
               }
             } catch (e) {
               console.error("Failed to parse Obsidian URI:", e);

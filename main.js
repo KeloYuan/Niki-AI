@@ -377,19 +377,25 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
               if (filePath) {
                 const decodedPath = decodeURIComponent(filePath);
                 console.log("Obsidian file path:", decodedPath);
-                if (!isTextFile2(decodedPath)) {
-                  new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
-                  continue;
-                }
                 const fileName = decodedPath.split("/").pop() || decodedPath;
                 const file = this.app.vault.getMarkdownFiles().find(
-                  (f) => f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+                  (f) => f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
                 );
                 if (file) {
                   this.addMentionedFile(file);
                   new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
                   return;
                 }
+                const allFiles = this.app.vault.getFiles();
+                const textFile = allFiles.find(
+                  (f) => f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
+                );
+                if (textFile && isTextFile2(textFile.path)) {
+                  this.addMentionedFile(textFile);
+                  new import_obsidian.Notice(this.plugin.tf("addedFile", { name: textFile.basename }));
+                  return;
+                }
+                console.log("File not found in vault:", decodedPath);
               }
             } catch (e) {
               console.error("Failed to parse Obsidian URI:", e);
