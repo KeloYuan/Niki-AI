@@ -614,6 +614,27 @@ ${userInput}`);
       });
     }
     if (detectedClaude) {
+      const isWindows = process.platform === "win32";
+      const isCmdFile = detectedClaude.endsWith(".cmd") || detectedClaude.endsWith(".bat");
+      if (isWindows && isCmdFile) {
+        return new Promise((resolve, reject) => {
+          const child = (0, import_child_process.exec)(
+            `cmd /c "${detectedClaude}"`,
+            { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs, shell: true },
+            (error, stdout, stderr) => {
+              if (error) {
+                reject(new Error(stderr || error.message));
+                return;
+              }
+              resolve(stdout || stderr);
+            }
+          );
+          if (child.stdin) {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          }
+        });
+      }
       const useNodeShim = isNodeScript(detectedClaude);
       const systemNode = useNodeShim ? findNodeBinary() : "";
       const command = useNodeShim ? systemNode || process.execPath : detectedClaude;
