@@ -96,6 +96,7 @@ const I18N = {
     aboutSectionName: "关于本插件",
     aboutVersion: "版本",
     aboutAuthor: "作者",
+    aboutEmail: "邮箱",
     aboutLicense: "开源协议",
     aboutRepository: "代码仓库",
     aboutDescription: "简介",
@@ -178,6 +179,7 @@ const I18N = {
     aboutSectionName: "About",
     aboutVersion: "Version",
     aboutAuthor: "Author",
+    aboutEmail: "Email",
     aboutLicense: "License",
     aboutRepository: "Repository",
     aboutDescription: "Description",
@@ -1859,6 +1861,17 @@ class ClaudeSidebarSettingTab extends PluginSettingTab {
     // 作者
     aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
       text: `${this.plugin.t("aboutAuthor")}: ${this.plugin.manifest.author}`,
+    });
+
+    // 邮箱
+    const emailDiv = aboutDiv.createEl("p", { cls: "claude-code-about-item" });
+    emailDiv.createSpan({
+      text: `${this.plugin.t("aboutEmail")}: `,
+    });
+    const emailLink = emailDiv.createEl("a", {
+      text: "sloanenyra@gmail.com",
+      href: "mailto:sloanenyra@gmail.com",
+      cls: "claude-code-about-link"
     });
 
     // 开源协议

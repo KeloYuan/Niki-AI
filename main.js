@@ -96,6 +96,7 @@ var I18N = {
     aboutSectionName: "\u5173\u4E8E\u672C\u63D2\u4EF6",
     aboutVersion: "\u7248\u672C",
     aboutAuthor: "\u4F5C\u8005",
+    aboutEmail: "\u90AE\u7BB1",
     aboutLicense: "\u5F00\u6E90\u534F\u8BAE",
     aboutRepository: "\u4EE3\u7801\u4ED3\u5E93",
     aboutDescription: "\u7B80\u4ECB",
@@ -157,6 +158,7 @@ var I18N = {
     aboutSectionName: "About",
     aboutVersion: "Version",
     aboutAuthor: "Author",
+    aboutEmail: "Email",
     aboutLicense: "License",
     aboutRepository: "Repository",
     aboutDescription: "Description",
@@ -1483,6 +1485,15 @@ var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
     });
     aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
       text: `${this.plugin.t("aboutAuthor")}: ${this.plugin.manifest.author}`
+    });
+    const emailDiv = aboutDiv.createEl("p", { cls: "claude-code-about-item" });
+    emailDiv.createSpan({
+      text: `${this.plugin.t("aboutEmail")}: `
+    });
+    const emailLink = emailDiv.createEl("a", {
+      text: "sloanenyra@gmail.com",
+      href: "mailto:sloanenyra@gmail.com",
+      cls: "claude-code-about-link"
     });
     aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
       text: `${this.plugin.t("aboutLicense")}: MIT`
