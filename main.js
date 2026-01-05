@@ -357,66 +357,77 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       if (!transfer)
         return;
       console.log("Drop event types:", transfer.types);
-      const uriData = transfer.getData("text/plain");
-      console.log("URI data:", uriData);
-      if (uriData && uriData.startsWith("obsidian://open?")) {
+      const isTextFile2 = (fileName) => {
+        var _a;
+        if (!fileName)
+          return false;
+        const ext = (_a = fileName.split(".").pop()) == null ? void 0 : _a.toLowerCase();
+        if (!ext)
+          return false;
+        return TEXT_EXTENSIONS.has(ext);
+      };
+      for (const type of transfer.types) {
         try {
-          const url = new URL(uriData);
-          const vaultName = url.searchParams.get("vault");
-          const filePath = url.searchParams.get("file");
-          console.log("Parsed URI - vault:", vaultName, "file:", filePath);
-          if (filePath) {
-            const decodedPath = decodeURIComponent(filePath);
-            console.log("Decoded path:", decodedPath);
-            if (!isTextFile(decodedPath)) {
-              new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
-              return;
+          const data = transfer.getData(type);
+          console.log(`Data for type "${type}":`, data);
+          if (typeof data === "string" && data.startsWith("obsidian://open?")) {
+            try {
+              const url = new URL(data);
+              const filePath = url.searchParams.get("file");
+              if (filePath) {
+                const decodedPath = decodeURIComponent(filePath);
+                console.log("Obsidian file path:", decodedPath);
+                if (!isTextFile2(decodedPath)) {
+                  new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
+                  continue;
+                }
+                const fileName = decodedPath.split("/").pop() || decodedPath;
+                const file = this.app.vault.getMarkdownFiles().find(
+                  (f) => f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+                );
+                if (file) {
+                  this.addMentionedFile(file);
+                  new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error("Failed to parse Obsidian URI:", e);
             }
-            const fileName = decodedPath.split("/").pop() || decodedPath;
+          }
+          if (typeof data === "string" && (data.endsWith(".md") || isTextFile2(data))) {
+            const fileName = data.split(/[/\\]/).pop() || data;
             const file = this.app.vault.getMarkdownFiles().find(
-              (f) => f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+              (f) => f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
             );
             if (file) {
               this.addMentionedFile(file);
               new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
               return;
-            } else {
-              const tempFile = {
-                path: decodedPath,
-                basename: fileName.replace(/\.md$/, ""),
-                extension: "md",
-                stat: { mtime: Date.now(), ctime: Date.now(), size: 0 }
-              };
-              this.addMentionedFile(tempFile);
-              new import_obsidian.Notice(this.plugin.tf("addedFile", { name: tempFile.basename }));
-              return;
             }
           }
         } catch (e) {
-          console.error("Failed to parse Obsidian URI:", e);
+          console.log(`Cannot read type "${type}":`, e);
         }
       }
       const files = transfer.files;
       console.log("Files from File API:", files);
       if (files && files.length > 0) {
         for (const file of Array.from(files)) {
-          const filePath = file.path || file.name;
-          console.log("Processing file:", filePath);
-          if (!filePath)
-            continue;
-          if (!isTextFile(file.name)) {
+          console.log("Processing file:", file.name);
+          if (!isTextFile2(file.name)) {
             new import_obsidian.Notice(this.plugin.t("unsupportedFileType"));
             continue;
           }
           const vaultFile = this.app.vault.getMarkdownFiles().find(
-            (f) => filePath.endsWith(f.path) || f.path.endsWith(filePath) || f.basename === file.name.replace(/\.[^/.]+$/, "")
+            (f) => f.basename === file.name.replace(/\.[^/.]+$/, "")
           );
           if (vaultFile) {
             this.addMentionedFile(vaultFile);
             new import_obsidian.Notice(this.plugin.tf("addedFile", { name: vaultFile.basename }));
           } else {
             const tempFile = {
-              path: filePath,
+              path: file.name,
               basename: file.name.replace(/\.[^/.]+$/, ""),
               extension: file.name.split(".").pop(),
               stat: { mtime: Date.now(), ctime: Date.now(), size: 0 }
@@ -1278,8 +1289,8 @@ function buildEnv(preferredNodePath) {
       import_path.default.join(programFiles, "nodejs"),
       import_path.default.join(programFilesX86, "nodejs"),
       import_path.default.join(localAppData, "Programs", "nodejs"),
-      ...((nvmSymlink ? [nvmSymlink] : [])),
-      ...((nvmHome ? [nvmHome] : []))
+      ...nvmSymlink ? [nvmSymlink] : [],
+      ...nvmHome ? [nvmHome] : []
     ];
   } else {
     extra = [

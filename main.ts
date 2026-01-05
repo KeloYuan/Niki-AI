@@ -450,56 +450,66 @@ class ClaudeSidebarView extends ItemView {
 
       console.log("Drop event types:", transfer.types);
 
-      // 方法1: 处理 Obsidian obsidian://open URI
-      const uriData = transfer.getData("text/plain");
-      console.log("URI data:", uriData);
+      // 检查支持的文本文件扩展名
+      const isTextFile = (fileName: string): boolean => {
+        if (!fileName) return false;
+        const ext = fileName.split('.').pop()?.toLowerCase();
+        if (!ext) return false;
+        return TEXT_EXTENSIONS.has(ext);
+      };
 
-      if (uriData && uriData.startsWith("obsidian://open?")) {
+      // 方法1: 尝试获取 Obsidian 文件数据
+      for (const type of transfer.types) {
         try {
-          const url = new URL(uriData);
-          const vaultName = url.searchParams.get("vault");
-          const filePath = url.searchParams.get("file");
+          const data = transfer.getData(type);
+          console.log(`Data for type "${type}":`, data);
 
-          console.log("Parsed URI - vault:", vaultName, "file:", filePath);
+          // 检查是否是 Obsidian URI
+          if (typeof data === "string" && data.startsWith("obsidian://open?")) {
+            try {
+              const url = new URL(data);
+              const filePath = url.searchParams.get("file");
+              if (filePath) {
+                const decodedPath = decodeURIComponent(filePath);
+                console.log("Obsidian file path:", decodedPath);
 
-          if (filePath) {
-            // Obsidian URI 编码的文件路径，需要解码
-            const decodedPath = decodeURIComponent(filePath);
-            console.log("Decoded path:", decodedPath);
+                if (!isTextFile(decodedPath)) {
+                  new Notice(this.plugin.t("unsupportedFileType"));
+                  continue;
+                }
 
-            // 检查是否为文本文件
-            if (!isTextFile(decodedPath)) {
-              new Notice(this.plugin.t("unsupportedFileType"));
-              return;
+                const fileName = decodedPath.split('/').pop() || decodedPath;
+                const file = this.app.vault.getMarkdownFiles().find((f) =>
+                  f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+                );
+
+                if (file) {
+                  this.addMentionedFile(file);
+                  new Notice(this.plugin.tf("addedFile", { name: file.basename }));
+                  return;
+                }
+              }
+            } catch (e) {
+              console.error("Failed to parse Obsidian URI:", e);
             }
+          }
 
-            // 尝试从路径中提取文件名
-            const fileName = decodedPath.split('/').pop() || decodedPath;
-
-            // 在 vault 中查找文件
+          // 检查是否是文件路径（某些系统会直接传递文件路径）
+          if (typeof data === "string" && (data.endsWith(".md") || isTextFile(data))) {
+            const fileName = data.split(/[/\\]/).pop() || data;
             const file = this.app.vault.getMarkdownFiles().find((f) =>
-              f.path === decodedPath || f.path.endsWith(decodedPath) || f.basename === fileName
+              f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
             );
 
             if (file) {
               this.addMentionedFile(file);
               new Notice(this.plugin.tf("addedFile", { name: file.basename }));
               return;
-            } else {
-              // 如果在 vault 中找不到，可能是外部文件，创建临时文件对象
-              const tempFile = {
-                path: decodedPath,
-                basename: fileName.replace(/\.md$/, ""),
-                extension: "md",
-                stat: { mtime: Date.now(), ctime: Date.now(), size: 0 },
-              } as TFile;
-              this.addMentionedFile(tempFile);
-              new Notice(this.plugin.tf("addedFile", { name: tempFile.basename }));
-              return;
             }
           }
         } catch (e) {
-          console.error("Failed to parse Obsidian URI:", e);
+          // 某些类型可能无法读取，忽略
+          console.log(`Cannot read type "${type}":`, e);
         }
       }
 
@@ -509,10 +519,7 @@ class ClaudeSidebarView extends ItemView {
 
       if (files && files.length > 0) {
         for (const file of Array.from(files)) {
-          const filePath = (file as any).path || (file as any).name;
-          console.log("Processing file:", filePath);
-
-          if (!filePath) continue;
+          console.log("Processing file:", file.name);
 
           // 检查是否为文本文件
           if (!isTextFile(file.name)) {
@@ -522,8 +529,6 @@ class ClaudeSidebarView extends ItemView {
 
           // 尝试在 vault 中查找匹配的文件
           const vaultFile = this.app.vault.getMarkdownFiles().find((f) =>
-            filePath.endsWith(f.path) ||
-            f.path.endsWith(filePath) ||
             f.basename === file.name.replace(/\.[^/.]+$/, "")
           );
 
@@ -533,7 +538,7 @@ class ClaudeSidebarView extends ItemView {
           } else {
             // 外部文件：创建简单的文件对象
             const tempFile = {
-              path: filePath,
+              path: file.name,
               basename: file.name.replace(/\.[^/.]+$/, ""),
               extension: file.name.split('.').pop(),
               stat: { mtime: Date.now(), ctime: Date.now(), size: 0 },
