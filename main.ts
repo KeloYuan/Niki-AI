@@ -235,6 +235,14 @@ type ChatMessage = {
   fileModifications?: FileModification[];  // 文件修改记录（用于撤销）
 };
 
+// 提及的项（文件或文件夹）
+type MentionedItem = {
+  type: "file" | "folder";
+  name: string;      // 显示名称
+  path: string;      // 文件或文件夹路径
+  files?: TFile[];   // 文件夹时的文件列表
+};
+
 type FileModification = {
   filePath: string;
   originalContent: string;
@@ -371,7 +379,7 @@ class ClaudeSidebarView extends ItemView {
   includeNoteEl: HTMLInputElement;
   private loaded = false;
   // 新增：@ 文件相关
-  private mentionedFiles: TFile[] = [];
+  private mentionedItems: MentionedItem[] = [];
   private mentionTagsEl: HTMLDivElement;
   private filePickerEl: HTMLDivElement;
   // 新增：话题相关
@@ -484,7 +492,11 @@ class ClaudeSidebarView extends ItemView {
       ) {
         const activeFile = this.getActiveFile();
         if (activeFile) {
-          this.addMentionedFile(activeFile);
+          this.addMentionedItem({
+            type: "file",
+            name: activeFile.basename,
+            path: activeFile.path
+          });
           // 移除输入的 @
           target.value = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
           target.setSelectionRange(cursorPos - 1, cursorPos - 1);
@@ -557,7 +569,11 @@ class ClaudeSidebarView extends ItemView {
                 );
 
                 if (file) {
-                  this.addMentionedFile(file);
+                  this.addMentionedItem({
+                    type: "file",
+                    name: file.basename,
+                    path: file.path
+                  });
                   new Notice(this.plugin.tf("addedFile", { name: file.basename }));
                   return;
                 }
@@ -569,7 +585,11 @@ class ClaudeSidebarView extends ItemView {
                 );
 
                 if (textFile && isTextFile(textFile.path)) {
-                  this.addMentionedFile(textFile);
+                  this.addMentionedItem({
+                    type: "file",
+                    name: textFile.basename,
+                    path: textFile.path
+                  });
                   new Notice(this.plugin.tf("addedFile", { name: textFile.basename }));
                   return;
                 }
@@ -582,16 +602,45 @@ class ClaudeSidebarView extends ItemView {
           }
 
           // 检查是否是文件路径（某些系统会直接传递文件路径）
-          if (typeof data === "string" && (data.endsWith(".md") || isTextFile(data))) {
-            const fileName = data.split(/[/\\]/).pop() || data;
-            const file = this.app.vault.getMarkdownFiles().find((f) =>
-              f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
-            );
+          if (typeof data === "string") {
+            // 先检查是否是文件夹
+            const abstractFile = this.app.vault.getAbstractFileByPath(data);
+            if (abstractFile && "children" in abstractFile) {
+              // 是文件夹，扫描并添加
+              const folderFiles = await this.scanFolder(data);
 
-            if (file) {
-              this.addMentionedFile(file);
-              new Notice(this.plugin.tf("addedFile", { name: file.basename }));
-              return;
+              if (folderFiles.length > 0) {
+                const folderName = data.split('/').pop() || data;
+                this.addMentionedItem({
+                  type: "folder",
+                  name: folderName,
+                  path: data,
+                  files: folderFiles
+                });
+                new Notice(`已添加文件夹: ${folderName} (${folderFiles.length} 个文件)`);
+                return;
+              } else {
+                new Notice(`文件夹 ${data} 中没有支持的文本文件`);
+                return;
+              }
+            }
+
+            // 如果不是文件夹，按文件处理
+            if (data.endsWith(".md") || isTextFile(data)) {
+              const fileName = data.split(/[/\\]/).pop() || data;
+              const file = this.app.vault.getMarkdownFiles().find((f) =>
+                f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
+              );
+
+              if (file) {
+                this.addMentionedItem({
+                  type: "file",
+                  name: file.basename,
+                  path: file.path
+                });
+                new Notice(this.plugin.tf("addedFile", { name: file.basename }));
+                return;
+              }
             }
           }
         } catch (e) {
@@ -620,7 +669,11 @@ class ClaudeSidebarView extends ItemView {
           );
 
           if (vaultFile) {
-            this.addMentionedFile(vaultFile);
+            this.addMentionedItem({
+              type: "file",
+              name: vaultFile.basename,
+              path: vaultFile.path
+            });
             new Notice(this.plugin.tf("addedFile", { name: vaultFile.basename }));
           } else {
             // 外部文件：创建简单的文件对象
@@ -630,8 +683,46 @@ class ClaudeSidebarView extends ItemView {
               extension: file.name.split('.').pop(),
               stat: { mtime: Date.now(), ctime: Date.now(), size: 0 },
             } as TFile;
-            this.addMentionedFile(tempFile);
+            this.addMentionedItem({
+              type: "file",
+              name: tempFile.basename,
+              path: tempFile.path
+            });
             new Notice(this.plugin.tf("addedFile", { name: tempFile.basename }));
+          }
+        }
+      }
+
+      // 方法3: 检查是否拖入了文件夹（通过 DataTransferItem）
+      if (transfer.items) {
+        for (let i = 0; i < transfer.items.length; i++) {
+          const item = transfer.items[i];
+
+          if (item.kind === "file") {
+            const entry = item.webkitGetAsEntry?.();
+            if (entry && entry.isDirectory) {
+
+              // 获取文件夹路径（去掉开头的 /）
+              const folderName = entry.fullPath.substring(1).split('/')[0];
+              const folderPath = folderName;
+
+              // 扫描文件夹获取所有文件
+              const folderFiles = await this.scanFolder(folderPath);
+
+              if (folderFiles.length > 0) {
+                this.addMentionedItem({
+                  type: "folder",
+                  name: folderName,
+                  path: folderPath,
+                  files: folderFiles
+                });
+                new Notice(`已添加文件夹: ${folderName} (${folderFiles.length} 个文件)`);
+              } else {
+                new Notice(`文件夹 ${folderName} 中没有支持的文本文件`);
+              }
+
+              return; // 处理完文件夹后直接返回
+            }
           }
         }
       }
@@ -698,7 +789,7 @@ class ClaudeSidebarView extends ItemView {
     }
 
     const content = this.inputEl.value.trim();
-    if (!content && this.mentionedFiles.length === 0) {
+    if (!content && this.mentionedItems.length === 0) {
       return;
     }
     this.inputEl.value = "";
@@ -707,11 +798,16 @@ class ClaudeSidebarView extends ItemView {
     this.isSending = true;
     this.updateSendButtonState();
 
-    // 构建用户消息内容（包含被 @ 的文件信息）
+    // 构建用户消息内容（包含被 @ 的文件/文件夹信息）
     let messageContent = content;
-    if (this.mentionedFiles.length > 0) {
-      const fileList = this.mentionedFiles.map((f) => `@${f.basename}`).join(", ");
-      messageContent = `${fileList}\n\n${content}`;
+    if (this.mentionedItems.length > 0) {
+      const itemList = this.mentionedItems.map((item) => {
+        if (item.type === "folder") {
+          return `@${item.name} (${item.files?.length || 0} 个文件)`;
+        }
+        return `@${item.name}`;
+      }).join(", ");
+      messageContent = `${itemList}\n\n${content}`;
     }
 
     this.addMessage({
@@ -720,11 +816,21 @@ class ClaudeSidebarView extends ItemView {
       originalInput: content  // 保存原始输入，用于生成话题标题
     });
 
-    // 新增：更新话题标题（在清空 mentionedFiles 之前）
+    // 新增：更新话题标题（在清空 mentionedItems 之前）
     await this.updateTopicTitle();
 
     // 记录调用前的文件状态（用于撤销）
-    const filesToTrack: TFile[] = [...this.mentionedFiles];
+    // 从 mentionedItems 中提取所有文件（包括文件夹内的文件）
+    const filesToTrack: TFile[] = [];
+    for (const item of this.mentionedItems) {
+      if (item.type === "folder" && item.files) {
+        filesToTrack.push(...item.files);
+      } else if (item.type === "file") {
+        // 从 Obsidian vault 中查找文件
+        const file = this.app.vault.getFiles().find(f => f.path === item.path);
+        if (file) filesToTrack.push(file);
+      }
+    }
     if (this.includeNoteEl.checked) {
       const activeFile = this.getActiveFile();
       if (activeFile && !filesToTrack.some((f) => f.path === activeFile.path)) {
@@ -865,14 +971,31 @@ class ClaudeSidebarView extends ItemView {
       parts.push(`[System]\n${system}`);
     }
 
-    // 新增：包含被 @ 的文件（读取内容）
-    if (this.mentionedFiles.length > 0) {
-      for (const file of this.mentionedFiles) {
-        try {
-          const content = await this.app.vault.read(file);
-          parts.push(`[@ ${file.path}]\n${content}`);
-        } catch {
-          parts.push(`[@ ${file.path}]\n(无法读取文件)`);
+    // 新增：包含被 @ 的文件/文件夹（读取内容）
+    if (this.mentionedItems.length > 0) {
+      for (const item of this.mentionedItems) {
+        if (item.type === "folder" && item.files) {
+          // 文件夹：读取所有文件内容
+          parts.push(`[@ 文件夹: ${item.name} (${item.files.length} 个文件)]`);
+          for (const file of item.files) {
+            try {
+              const content = await this.app.vault.read(file);
+              parts.push(`[文件: ${file.path}]\n${content}`);
+            } catch {
+              parts.push(`[文件: ${file.path}]\n(无法读取文件)`);
+            }
+          }
+        } else if (item.type === "file") {
+          // 单个文件
+          const file = this.app.vault.getFiles().find(f => f.path === item.path);
+          if (file) {
+            try {
+              const content = await this.app.vault.read(file);
+              parts.push(`[@ ${file.path}]\n${content}`);
+            } catch {
+              parts.push(`[@ ${file.path}]\n(无法读取文件)`);
+            }
+          }
         }
       }
     }
@@ -880,7 +1003,20 @@ class ClaudeSidebarView extends ItemView {
     // "Include current note" 也读取内容
     if (this.includeNoteEl.checked) {
       const activeFile = this.getActiveFile();
-      if (activeFile && !this.mentionedFiles.some((f) => f.path === activeFile.path)) {
+      if (!activeFile) {
+        // 没有当前活动文件，跳过
+        return parts.join("\n\n");
+      }
+
+      // 检查当前笔记是否已经在 mentionedItems 中
+      const alreadyIncluded = this.mentionedItems.some(item => {
+        if (item.type === "file") return item.path === activeFile.path;
+        if (item.type === "folder" && item.files) {
+          return item.files.some(f => f.path === activeFile.path);
+        }
+        return false;
+      });
+      if (!alreadyIncluded) {
         try {
           const noteText = await this.app.vault.read(activeFile);
           parts.push(`[@ Current note: ${activeFile.path}]\n${noteText}`);
@@ -1414,7 +1550,11 @@ class ClaudeSidebarView extends ItemView {
         });
 
         item.addEventListener("click", () => {
-          this.addMentionedFile(file);
+          this.addMentionedItem({
+            type: "file",
+            name: file.basename,
+            path: file.path
+          });
           this.hideFilePicker();
         });
       }
@@ -1450,51 +1590,90 @@ class ClaudeSidebarView extends ItemView {
     }
   };
 
-  // 添加被 @ 的文件
-  private addMentionedFile(file: TFile): void {
-    if (this.mentionedFiles.some((f) => f.path === file.path)) {
+  // 添加被 @ 的文件/文件夹
+  private addMentionedItem(item: MentionedItem): void {
+    // 检查是否已存在（通过路径判断）
+    const exists = this.mentionedItems.some(i => i.path === item.path);
+    if (exists) {
       return;
     }
-    this.mentionedFiles.push(file);
+    this.mentionedItems.push(item);
     this.renderMentionTags();
     this.inputEl.focus();
   }
 
-  // 移除被 @ 的文件
-  private removeMentionedFile(file: TFile): void {
-    this.mentionedFiles = this.mentionedFiles.filter((f) => f.path !== file.path);
+  // 移除被 @ 的文件/文件夹
+  private removeMentionedItem(item: MentionedItem): void {
+    this.mentionedItems = this.mentionedItems.filter(i => i.path !== item.path);
     this.renderMentionTags();
   }
 
   // 渲染 @ 标签
   private renderMentionTags(): void {
     this.mentionTagsEl.empty();
-    this.mentionTagsEl.toggleClass("has-tags", this.mentionedFiles.length > 0);
+    this.mentionTagsEl.toggleClass("has-tags", this.mentionedItems.length > 0);
 
-    for (const file of this.mentionedFiles) {
+    for (const item of this.mentionedItems) {
       const tag = this.mentionTagsEl.createDiv("claude-code-mention-tag");
 
+      // 文件夹用特殊图标
       const icon = tag.createSpan({ cls: "claude-code-mention-icon" });
-      icon.setText("@");
+      if (item.type === "folder") {
+        icon.setText("📁");
+      } else {
+        icon.setText("@");
+      }
+
+      // 显示名称（文件夹显示文件数量）
+      const displayName = item.type === "folder"
+        ? `${item.name} (${item.files?.length || 0})`
+        : item.name;
 
       const name = tag.createSpan({
-        text: file.path,
+        text: displayName,
         cls: "claude-code-mention-name",
       });
-      name.setAttribute("title", file.path);
+      name.setAttribute("title", item.path);
 
       const removeBtn = tag.createSpan({
         text: "×",
         cls: "claude-code-mention-remove",
       });
-      removeBtn.addEventListener("click", () => this.removeMentionedFile(file));
+      removeBtn.addEventListener("click", () => this.removeMentionedItem(item));
     }
   }
 
   // 清空 @ 标签
   private clearMentionTags(): void {
-    this.mentionedFiles = [];
+    this.mentionedItems = [];
     this.renderMentionTags();
+  }
+
+  // 扫描文件夹，获取所有支持的文本文件
+  private async scanFolder(folderPath: string): Promise<TFile[]> {
+    const TEXT_EXTENSIONS = new Set([
+      "md", "txt", "js", "ts", "jsx", "tsx", "py", "rs", "go", "java",
+      "c", "cpp", "h", "hpp", "cs", "php", "rb", "swift", "kt", "scala",
+      "json", "yaml", "yml", "toml", "xml", "html", "css", "scss", "less",
+      "sh", "bash", "zsh", "fish", "ps1", "sql", "graphql", "wsdl", "rss"
+    ]);
+
+    const files: TFile[] = [];
+    const allFiles = this.app.vault.getFiles();
+
+    // 查找文件夹下的所有文件
+    for (const file of allFiles) {
+      // 检查文件是否在指定文件夹下
+      if (file.path.startsWith(folderPath) || file.path.startsWith(folderPath + "/")) {
+        // 检查是否为支持的文本文件
+        const ext = file.extension?.toLowerCase();
+        if (ext && TEXT_EXTENSIONS.has(ext)) {
+          files.push(file);
+        }
+      }
+    }
+
+    return files;
   }
 
   // ============ 助手预设管理相关方法 ============

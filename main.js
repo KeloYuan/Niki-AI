@@ -273,7 +273,7 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
     this.messages = [];
     this.loaded = false;
     // 新增：@ 文件相关
-    this.mentionedFiles = [];
+    this.mentionedItems = [];
     // 新增：发送状态管理
     this.isSending = false;
     this.currentProcess = null;
@@ -349,7 +349,11 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       if (cursorPos > 0 && value[cursorPos - 1] === "@" && (cursorPos === 1 || value[cursorPos - 2] === " ")) {
         const activeFile = this.getActiveFile();
         if (activeFile) {
-          this.addMentionedFile(activeFile);
+          this.addMentionedItem({
+            type: "file",
+            name: activeFile.basename,
+            path: activeFile.path
+          });
           target.value = value.slice(0, cursorPos - 1) + value.slice(cursorPos);
           target.setSelectionRange(cursorPos - 1, cursorPos - 1);
           this.showFilePicker();
@@ -409,6 +413,7 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       return ext ? TEXT_EXTENSIONS.has(ext) : false;
     };
     this.inputEl.addEventListener("drop", async (event) => {
+      var _a;
       event.preventDefault();
       this.inputEl.removeClass("claude-code-input-dragover");
       const transfer = event.dataTransfer;
@@ -416,10 +421,10 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
         return;
       console.log("Drop event types:", transfer.types);
       const isTextFile2 = (fileName) => {
-        var _a;
+        var _a2;
         if (!fileName)
           return false;
-        const ext = (_a = fileName.split(".").pop()) == null ? void 0 : _a.toLowerCase();
+        const ext = (_a2 = fileName.split(".").pop()) == null ? void 0 : _a2.toLowerCase();
         if (!ext)
           return false;
         return TEXT_EXTENSIONS.has(ext);
@@ -440,7 +445,11 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
                   (f) => f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
                 );
                 if (file) {
-                  this.addMentionedFile(file);
+                  this.addMentionedItem({
+                    type: "file",
+                    name: file.basename,
+                    path: file.path
+                  });
                   new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
                   return;
                 }
@@ -449,7 +458,11 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
                   (f) => f.basename === fileName || f.path === decodedPath || f.path.endsWith(decodedPath)
                 );
                 if (textFile && isTextFile2(textFile.path)) {
-                  this.addMentionedFile(textFile);
+                  this.addMentionedItem({
+                    type: "file",
+                    name: textFile.basename,
+                    path: textFile.path
+                  });
                   new import_obsidian.Notice(this.plugin.tf("addedFile", { name: textFile.basename }));
                   return;
                 }
@@ -459,15 +472,39 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
               console.error("Failed to parse Obsidian URI:", e);
             }
           }
-          if (typeof data === "string" && (data.endsWith(".md") || isTextFile2(data))) {
-            const fileName = data.split(/[/\\]/).pop() || data;
-            const file = this.app.vault.getMarkdownFiles().find(
-              (f) => f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
-            );
-            if (file) {
-              this.addMentionedFile(file);
-              new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
-              return;
+          if (typeof data === "string") {
+            const abstractFile = this.app.vault.getAbstractFileByPath(data);
+            if (abstractFile && "children" in abstractFile) {
+              const folderFiles = await this.scanFolder(data);
+              if (folderFiles.length > 0) {
+                const folderName = data.split("/").pop() || data;
+                this.addMentionedItem({
+                  type: "folder",
+                  name: folderName,
+                  path: data,
+                  files: folderFiles
+                });
+                new import_obsidian.Notice(`\u5DF2\u6DFB\u52A0\u6587\u4EF6\u5939: ${folderName} (${folderFiles.length} \u4E2A\u6587\u4EF6)`);
+                return;
+              } else {
+                new import_obsidian.Notice(`\u6587\u4EF6\u5939 ${data} \u4E2D\u6CA1\u6709\u652F\u6301\u7684\u6587\u672C\u6587\u4EF6`);
+                return;
+              }
+            }
+            if (data.endsWith(".md") || isTextFile2(data)) {
+              const fileName = data.split(/[/\\]/).pop() || data;
+              const file = this.app.vault.getMarkdownFiles().find(
+                (f) => f.path === data || f.path.endsWith(data) || f.basename === fileName.replace(/\.[^/.]+$/, "")
+              );
+              if (file) {
+                this.addMentionedItem({
+                  type: "file",
+                  name: file.basename,
+                  path: file.path
+                });
+                new import_obsidian.Notice(this.plugin.tf("addedFile", { name: file.basename }));
+                return;
+              }
             }
           }
         } catch (e) {
@@ -487,7 +524,11 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
             (f) => f.basename === file.name.replace(/\.[^/.]+$/, "")
           );
           if (vaultFile) {
-            this.addMentionedFile(vaultFile);
+            this.addMentionedItem({
+              type: "file",
+              name: vaultFile.basename,
+              path: vaultFile.path
+            });
             new import_obsidian.Notice(this.plugin.tf("addedFile", { name: vaultFile.basename }));
           } else {
             const tempFile = {
@@ -496,8 +537,37 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
               extension: file.name.split(".").pop(),
               stat: { mtime: Date.now(), ctime: Date.now(), size: 0 }
             };
-            this.addMentionedFile(tempFile);
+            this.addMentionedItem({
+              type: "file",
+              name: tempFile.basename,
+              path: tempFile.path
+            });
             new import_obsidian.Notice(this.plugin.tf("addedFile", { name: tempFile.basename }));
+          }
+        }
+      }
+      if (transfer.items) {
+        for (let i = 0; i < transfer.items.length; i++) {
+          const item = transfer.items[i];
+          if (item.kind === "file") {
+            const entry = (_a = item.webkitGetAsEntry) == null ? void 0 : _a.call(item);
+            if (entry && entry.isDirectory) {
+              const folderName = entry.fullPath.substring(1).split("/")[0];
+              const folderPath = folderName;
+              const folderFiles = await this.scanFolder(folderPath);
+              if (folderFiles.length > 0) {
+                this.addMentionedItem({
+                  type: "folder",
+                  name: folderName,
+                  path: folderPath,
+                  files: folderFiles
+                });
+                new import_obsidian.Notice(`\u5DF2\u6DFB\u52A0\u6587\u4EF6\u5939: ${folderName} (${folderFiles.length} \u4E2A\u6587\u4EF6)`);
+              } else {
+                new import_obsidian.Notice(`\u6587\u4EF6\u5939 ${folderName} \u4E2D\u6CA1\u6709\u652F\u6301\u7684\u6587\u672C\u6587\u4EF6`);
+              }
+              return;
+            }
           }
         }
       }
@@ -548,16 +618,22 @@ var ClaudeSidebarView = class extends import_obsidian.ItemView {
       return;
     }
     const content = this.inputEl.value.trim();
-    if (!content && this.mentionedFiles.length === 0) {
+    if (!content && this.mentionedItems.length === 0) {
       return;
     }
     this.inputEl.value = "";
     this.isSending = true;
     this.updateSendButtonState();
     let messageContent = content;
-    if (this.mentionedFiles.length > 0) {
-      const fileList = this.mentionedFiles.map((f) => `@${f.basename}`).join(", ");
-      messageContent = `${fileList}
+    if (this.mentionedItems.length > 0) {
+      const itemList = this.mentionedItems.map((item) => {
+        var _a;
+        if (item.type === "folder") {
+          return `@${item.name} (${((_a = item.files) == null ? void 0 : _a.length) || 0} \u4E2A\u6587\u4EF6)`;
+        }
+        return `@${item.name}`;
+      }).join(", ");
+      messageContent = `${itemList}
 
 ${content}`;
     }
@@ -568,7 +644,16 @@ ${content}`;
       // 保存原始输入，用于生成话题标题
     });
     await this.updateTopicTitle();
-    const filesToTrack = [...this.mentionedFiles];
+    const filesToTrack = [];
+    for (const item of this.mentionedItems) {
+      if (item.type === "folder" && item.files) {
+        filesToTrack.push(...item.files);
+      } else if (item.type === "file") {
+        const file = this.app.vault.getFiles().find((f) => f.path === item.path);
+        if (file)
+          filesToTrack.push(file);
+      }
+    }
     if (this.includeNoteEl.checked) {
       const activeFile = this.getActiveFile();
       if (activeFile && !filesToTrack.some((f) => f.path === activeFile.path)) {
@@ -683,21 +768,49 @@ ${content}`;
       parts.push(`[System]
 ${system}`);
     }
-    if (this.mentionedFiles.length > 0) {
-      for (const file of this.mentionedFiles) {
-        try {
-          const content = await this.app.vault.read(file);
-          parts.push(`[@ ${file.path}]
+    if (this.mentionedItems.length > 0) {
+      for (const item of this.mentionedItems) {
+        if (item.type === "folder" && item.files) {
+          parts.push(`[@ \u6587\u4EF6\u5939: ${item.name} (${item.files.length} \u4E2A\u6587\u4EF6)]`);
+          for (const file of item.files) {
+            try {
+              const content = await this.app.vault.read(file);
+              parts.push(`[\u6587\u4EF6: ${file.path}]
 ${content}`);
-        } catch (e) {
-          parts.push(`[@ ${file.path}]
+            } catch (e) {
+              parts.push(`[\u6587\u4EF6: ${file.path}]
 (\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6)`);
+            }
+          }
+        } else if (item.type === "file") {
+          const file = this.app.vault.getFiles().find((f) => f.path === item.path);
+          if (file) {
+            try {
+              const content = await this.app.vault.read(file);
+              parts.push(`[@ ${file.path}]
+${content}`);
+            } catch (e) {
+              parts.push(`[@ ${file.path}]
+(\u65E0\u6CD5\u8BFB\u53D6\u6587\u4EF6)`);
+            }
+          }
         }
       }
     }
     if (this.includeNoteEl.checked) {
       const activeFile = this.getActiveFile();
-      if (activeFile && !this.mentionedFiles.some((f) => f.path === activeFile.path)) {
+      if (!activeFile) {
+        return parts.join("\n\n");
+      }
+      const alreadyIncluded = this.mentionedItems.some((item) => {
+        if (item.type === "file")
+          return item.path === activeFile.path;
+        if (item.type === "folder" && item.files) {
+          return item.files.some((f) => f.path === activeFile.path);
+        }
+        return false;
+      });
+      if (!alreadyIncluded) {
         try {
           const noteText = await this.app.vault.read(activeFile);
           parts.push(`[@ Current note: ${activeFile.path}]
@@ -1145,7 +1258,11 @@ ${content.trim()}
           cls: "claude-code-file-path"
         });
         item.addEventListener("click", () => {
-          this.addMentionedFile(file);
+          this.addMentionedItem({
+            type: "file",
+            name: file.basename,
+            path: file.path
+          });
           this.hideFilePicker();
         });
       }
@@ -1166,44 +1283,106 @@ ${content.trim()}
     }
     document.removeEventListener("click", this.handleOutsideClick);
   }
-  // 添加被 @ 的文件
-  addMentionedFile(file) {
-    if (this.mentionedFiles.some((f) => f.path === file.path)) {
+  // 添加被 @ 的文件/文件夹
+  addMentionedItem(item) {
+    const exists = this.mentionedItems.some((i) => i.path === item.path);
+    if (exists) {
       return;
     }
-    this.mentionedFiles.push(file);
+    this.mentionedItems.push(item);
     this.renderMentionTags();
     this.inputEl.focus();
   }
-  // 移除被 @ 的文件
-  removeMentionedFile(file) {
-    this.mentionedFiles = this.mentionedFiles.filter((f) => f.path !== file.path);
+  // 移除被 @ 的文件/文件夹
+  removeMentionedItem(item) {
+    this.mentionedItems = this.mentionedItems.filter((i) => i.path !== item.path);
     this.renderMentionTags();
   }
   // 渲染 @ 标签
   renderMentionTags() {
+    var _a;
     this.mentionTagsEl.empty();
-    this.mentionTagsEl.toggleClass("has-tags", this.mentionedFiles.length > 0);
-    for (const file of this.mentionedFiles) {
+    this.mentionTagsEl.toggleClass("has-tags", this.mentionedItems.length > 0);
+    for (const item of this.mentionedItems) {
       const tag = this.mentionTagsEl.createDiv("claude-code-mention-tag");
       const icon = tag.createSpan({ cls: "claude-code-mention-icon" });
-      icon.setText("@");
+      if (item.type === "folder") {
+        icon.setText("\u{1F4C1}");
+      } else {
+        icon.setText("@");
+      }
+      const displayName = item.type === "folder" ? `${item.name} (${((_a = item.files) == null ? void 0 : _a.length) || 0})` : item.name;
       const name = tag.createSpan({
-        text: file.path,
+        text: displayName,
         cls: "claude-code-mention-name"
       });
-      name.setAttribute("title", file.path);
+      name.setAttribute("title", item.path);
       const removeBtn = tag.createSpan({
         text: "\xD7",
         cls: "claude-code-mention-remove"
       });
-      removeBtn.addEventListener("click", () => this.removeMentionedFile(file));
+      removeBtn.addEventListener("click", () => this.removeMentionedItem(item));
     }
   }
   // 清空 @ 标签
   clearMentionTags() {
-    this.mentionedFiles = [];
+    this.mentionedItems = [];
     this.renderMentionTags();
+  }
+  // 扫描文件夹，获取所有支持的文本文件
+  async scanFolder(folderPath) {
+    var _a;
+    const TEXT_EXTENSIONS = /* @__PURE__ */ new Set([
+      "md",
+      "txt",
+      "js",
+      "ts",
+      "jsx",
+      "tsx",
+      "py",
+      "rs",
+      "go",
+      "java",
+      "c",
+      "cpp",
+      "h",
+      "hpp",
+      "cs",
+      "php",
+      "rb",
+      "swift",
+      "kt",
+      "scala",
+      "json",
+      "yaml",
+      "yml",
+      "toml",
+      "xml",
+      "html",
+      "css",
+      "scss",
+      "less",
+      "sh",
+      "bash",
+      "zsh",
+      "fish",
+      "ps1",
+      "sql",
+      "graphql",
+      "wsdl",
+      "rss"
+    ]);
+    const files = [];
+    const allFiles = this.app.vault.getFiles();
+    for (const file of allFiles) {
+      if (file.path.startsWith(folderPath) || file.path.startsWith(folderPath + "/")) {
+        const ext = (_a = file.extension) == null ? void 0 : _a.toLowerCase();
+        if (ext && TEXT_EXTENSIONS.has(ext)) {
+          files.push(file);
+        }
+      }
+    }
+    return files;
   }
   // ============ 助手预设管理相关方法 ============
   // 切换助手

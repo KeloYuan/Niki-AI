@@ -2,6 +2,18 @@
 
 All notable changes to Niki AI will be documented in this file.
 
+## [4.0.3] - 2026-01-07
+
+### New Features
+- **Folder drag & drop**: Support dragging entire folders into the chat
+- AI will read all files within the folder as context
+- Visual indicator shows folder icon 📁 and file count
+- Supports 20+ file types (md, txt, js, py, json, yaml, etc.)
+
+### Improvements
+- Better mention item tracking with unified `MentionedItem` type
+- Enhanced UI with folder icons and file count display
+
 ## [4.0.2] - 2026-01-07
 
 ### Bug Fixes
