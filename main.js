@@ -82,6 +82,12 @@ var I18N = {
     settingNodePathDesc: "Node \u53EF\u6267\u884C\u6587\u4EF6\u7684\u5B8C\u6574\u8DEF\u5F84\uFF08Windows \u53EF\u586B node.exe\uFF09\u3002\u7559\u7A7A\u5219\u81EA\u52A8\u68C0\u6D4B\u3002",
     settingGitBashPathName: "Git Bash path",
     settingGitBashPathDesc: "Git Bash \u53EF\u6267\u884C\u6587\u4EF6\u7684\u5B8C\u6574\u8DEF\u5F84\uFF08Windows \u4F7F\u7528 shell \u6267\u884C\u65F6\u9700\u8981\uFF09\u3002\u7559\u7A7A\u5219\u81EA\u52A8\u68C0\u6D4B\u3002",
+    settingClaudeEditionName: "Claude \u7248\u672C\u9009\u62E9",
+    settingClaudeEditionDesc: "\u9009\u62E9\u4F7F\u7528\u54EA\u4E2A\u7248\u672C\u7684 Claude CLI\u3002auto=\u81EA\u52A8\u68C0\u6D4B\uFF0Cnpm=npm \u5B89\u88C5\u7248\u672C\uFF0Cnative=\u539F\u751F\u4E8C\u8FDB\u5236\u7248\u672C\uFF0Ccustom=\u81EA\u5B9A\u4E49\u8DEF\u5F84\u3002",
+    editionAuto: "\u81EA\u52A8\u68C0\u6D4B",
+    editionNpm: "npm \u7248\u672C",
+    editionNative: "\u539F\u751F\u7248\u672C",
+    editionCustom: "\u81EA\u5B9A\u4E49\u8DEF\u5F84",
     pathHelpButton: "\u5E2E\u52A9",
     pathHelpTitle: "\u8DEF\u5F84\u5E2E\u52A9",
     pathHelpBody: "\u5982\u4F55\u627E\u5230 Claude / Node \u7684\u5B8C\u6574\u8DEF\u5F84\uFF1A\n\nWindows\uFF08\u63A8\u8350\uFF09:\n1) \u6253\u5F00 cmd \u6216 PowerShell\n2) \u8FD0\u884C: where claude\n3) \u8FD0\u884C: where node\n\n\u5982\u679C\u6CA1\u6709\u8F93\u51FA\uFF0C\u53EF\u5C1D\u8BD5\u4EE5\u4E0B\u5E38\u89C1\u8DEF\u5F84\uFF1A\n- %APPDATA%\\npm\\claude.cmd\n- C:\\Program Files\\nodejs\\node.exe\n- C:\\Program Files (x86)\\nodejs\\node.exe\n- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n- %NVM_SYMLINK%\\node.exe\n\nmacOS/Linux:\n- \u8FD0\u884C: which claude\n- \u8FD0\u884C: which node",
@@ -160,6 +166,12 @@ var I18N = {
     settingNodePathDesc: "Full path to the Node executable (on Windows, use node.exe). Leave empty to auto-detect.",
     settingGitBashPathName: "Git Bash path",
     settingGitBashPathDesc: "Full path to the Git Bash executable (needed for shell execution on Windows). Leave empty to auto-detect.",
+    settingClaudeEditionName: "Claude Edition",
+    settingClaudeEditionDesc: "Choose which Claude CLI version to use. auto=auto-detect, npm=npm installed version, native=native binary, custom=custom path.",
+    editionAuto: "Auto-detect",
+    editionNpm: "npm version",
+    editionNative: "Native version",
+    editionCustom: "Custom path",
     pathHelpButton: "Help",
     pathHelpTitle: "Path Help",
     pathHelpBody: "How to find the full paths for Claude / Node:\n\nWindows (recommended):\n1) Open cmd or PowerShell\n2) Run: where claude\n3) Run: where node\n\nIf there is no output, try these common locations:\n- %APPDATA%\\npm\\claude.cmd\n- C:\\Program Files\\nodejs\\node.exe\n- C:\\Program Files (x86)\\nodejs\\node.exe\n- %LOCALAPPDATA%\\Programs\\nodejs\\node.exe\n- %NVM_SYMLINK%\\node.exe\n\nmacOS/Linux:\n- Run: which claude\n- Run: which node",
@@ -210,6 +222,7 @@ function format(template, vars) {
 var DEFAULT_SETTINGS = {
   claudeCommand: "",
   claudePath: "",
+  claudeEdition: "auto",
   nodePath: "",
   gitBashPath: "",
   defaultPrompt: "You are Niki AI embedded in Obsidian (powered by Claude Code). Help me edit Markdown notes.\nWhen you propose changes, be explicit and keep the style consistent.",
@@ -825,8 +838,9 @@ ${userInput}`);
   runClaudeCommand(prompt) {
     const configured = this.plugin.settings.claudeCommand.trim();
     const preferredClaude = this.plugin.settings.claudePath.trim();
+    const edition = this.plugin.settings.claudeEdition;
     const normalized = normalizeCommand(configured);
-    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude);
+    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude, edition);
     const basePath = this.getVaultBasePath();
     const cwd = this.plugin.settings.workingDir.trim() || basePath || void 0;
     const gitBashPath = this.plugin.settings.gitBashPath.trim();
@@ -835,6 +849,7 @@ ${userInput}`);
     console.debug("[Niki AI] Running Claude command:");
     console.debug("  Configured:", configured || "(empty)");
     console.debug("  Claude path:", preferredClaude || "(auto-detect)");
+    console.debug("  Claude edition:", edition);
     console.debug("  Node path:", this.plugin.settings.nodePath.trim() || "(auto-detect)");
     console.debug("  Git Bash path:", gitBashPath || "(auto-detect/not set)");
     console.debug("  Detected claude:", detectedClaude || "(not found)");
@@ -921,11 +936,39 @@ ${userInput}`);
         });
       }
       const useNodeShim = isNodeScript(detectedClaude);
-      const systemNode = useNodeShim ? findNodeBinary(this.plugin.settings.nodePath.trim()) : "";
-      const command = useNodeShim ? systemNode || process.execPath : detectedClaude;
-      const args = useNodeShim ? [detectedClaude] : [];
+      if (useNodeShim) {
+        console.debug("[Niki AI] Using shell execution for Node.js script (preserves environment)");
+        return new Promise((resolve, reject) => {
+          const child = (0, import_child_process.exec)(
+            `"${detectedClaude}"`,
+            { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs, shell: true },
+            (error, stdout, stderr) => {
+              this.currentProcess = null;
+              if (error) {
+                console.error("[Niki AI] Command failed (shell exec):");
+                console.error("  Error code:", error.code);
+                console.error("  Error message:", error.message);
+                console.error("  Signal:", error.signal);
+                console.error("  Stderr:", stderr);
+                console.error("  Stdout:", stdout ? stdout.substring(0, 500) : "(empty)");
+                reject(new Error(stderr || error.message));
+                return;
+              }
+              console.debug("[Niki AI] Command succeeded, output length:", (stdout || stderr).length);
+              resolve(stdout || stderr);
+            }
+          );
+          this.currentProcess = child;
+          if (child.stdin) {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          }
+        });
+      }
+      const systemNode = findNodeBinary(this.plugin.settings.nodePath.trim());
+      const command = systemNode || process.execPath;
+      const args = [detectedClaude];
       console.debug("[Niki AI] Execution details:");
-      console.debug("  Use Node shim:", useNodeShim);
       console.debug("  Command:", command);
       console.debug("  Args:", args);
       return new Promise((resolve, reject) => {
@@ -1600,35 +1643,67 @@ function normalizeCommand(command) {
   }
   return trimmed;
 }
-function findClaudeBinary(preferredPath) {
-  if (preferredPath) {
-    const candidate = preferredPath.trim();
-    if (candidate && isExecutable(candidate)) {
-      return candidate;
-    }
-  }
+function findClaudeBinary(preferredPath, edition = "auto") {
   const home = import_os.default.homedir();
   const isWindows = process.platform === "win32";
-  if (isWindows) {
-    const appData = process.env.APPDATA || import_path.default.join(home, "AppData", "Roaming");
-    const windowsCandidates = [
-      import_path.default.join(appData, "npm", "claude.cmd"),
-      import_path.default.join(appData, "npm", "claude")
-    ];
-    for (const candidate of windowsCandidates) {
-      if (isExecutable(candidate)) {
+  if (edition === "custom") {
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
         return candidate;
       }
     }
+    return "";
   }
-  const unixCandidates = [
-    import_path.default.join(home, ".npm-global", "bin", "claude"),
-    import_path.default.join(home, ".local", "bin", "claude"),
+  const npmCandidates = [];
+  const nativeCandidates = [];
+  if (isWindows) {
+    const appData = process.env.APPDATA || import_path.default.join(home, "AppData", "Roaming");
+    npmCandidates.push(
+      import_path.default.join(appData, "npm", "claude.cmd"),
+      import_path.default.join(appData, "npm", "claude")
+    );
+    nativeCandidates.push(
+      import_path.default.join(home, ".claude", "bin", "claude.exe"),
+      import_path.default.join(home, ".claude", "bin", "claude.cmd")
+    );
+  } else {
+    npmCandidates.push(
+      import_path.default.join(home, ".npm-global", "bin", "claude")
+    );
+    nativeCandidates.push(
+      import_path.default.join(home, ".local", "bin", "claude"),
+      import_path.default.join(home, ".claude", "bin", "claude")
+    );
+  }
+  nativeCandidates.push(
     "/opt/homebrew/bin/claude",
     "/usr/local/bin/claude",
     "/usr/bin/claude"
-  ];
-  for (const candidate of unixCandidates) {
+  );
+  let candidates = [];
+  if (edition === "custom") {
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+    return "";
+  } else if (edition === "npm") {
+    candidates = [...npmCandidates, ...nativeCandidates];
+  } else if (edition === "native") {
+    candidates = [...nativeCandidates, ...npmCandidates];
+  } else {
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+    candidates = [...npmCandidates, ...nativeCandidates];
+  }
+  for (const candidate of candidates) {
     if (isExecutable(candidate)) {
       return candidate;
     }
@@ -1840,6 +1915,12 @@ var ClaudeSidebarSettingTab = class extends import_obsidian.PluginSettingTab {
     new import_obsidian.Setting(containerEl).setName(this.plugin.t("settingClaudePathName")).setDesc(this.plugin.t("settingClaudePathDesc")).addText(
       (text) => text.setPlaceholder("C:\\Users\\<name>\\AppData\\Roaming\\npm\\claude.cmd").setValue(this.plugin.settings.claudePath).onChange(async (value) => {
         this.plugin.settings.claudePath = value;
+        await this.plugin.saveSettings();
+      })
+    );
+    new import_obsidian.Setting(containerEl).setName(this.plugin.t("settingClaudeEditionName")).setDesc(this.plugin.t("settingClaudeEditionDesc")).addDropdown(
+      (dropdown) => dropdown.addOption("auto", this.plugin.t("editionAuto")).addOption("npm", this.plugin.t("editionNpm")).addOption("native", this.plugin.t("editionNative")).addOption("custom", this.plugin.t("editionCustom")).setValue(this.plugin.settings.claudeEdition).onChange(async (value) => {
+        this.plugin.settings.claudeEdition = value;
         await this.plugin.saveSettings();
       })
     );

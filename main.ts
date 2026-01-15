@@ -18,6 +18,7 @@ import path from "path";
 const VIEW_TYPE_CLAUDE = "niki-ai-sidebar-view";
 
 type Language = "zh-CN" | "en-US";
+type ClaudeEdition = "auto" | "npm" | "native" | "custom";
 
 const I18N = {
   "zh-CN": {
@@ -69,6 +70,13 @@ const I18N = {
     settingGitBashPathName: "Git Bash path",
     settingGitBashPathDesc:
       "Git Bash 可执行文件的完整路径（Windows 使用 shell 执行时需要）。留空则自动检测。",
+    settingClaudeEditionName: "Claude 版本选择",
+    settingClaudeEditionDesc:
+      "选择使用哪个版本的 Claude CLI。auto=自动检测，npm=npm 安装版本，native=原生二进制版本，custom=自定义路径。",
+    editionAuto: "自动检测",
+    editionNpm: "npm 版本",
+    editionNative: "原生版本",
+    editionCustom: "自定义路径",
     pathHelpButton: "帮助",
     pathHelpTitle: "路径帮助",
     pathHelpBody:
@@ -168,6 +176,13 @@ const I18N = {
     settingGitBashPathName: "Git Bash path",
     settingGitBashPathDesc:
       "Full path to the Git Bash executable (needed for shell execution on Windows). Leave empty to auto-detect.",
+    settingClaudeEditionName: "Claude Edition",
+    settingClaudeEditionDesc:
+      "Choose which Claude CLI version to use. auto=auto-detect, npm=npm installed version, native=native binary, custom=custom path.",
+    editionAuto: "Auto-detect",
+    editionNpm: "npm version",
+    editionNative: "Native version",
+    editionCustom: "Custom path",
     pathHelpButton: "Help",
     pathHelpTitle: "Path Help",
     pathHelpBody:
@@ -282,6 +297,7 @@ type AssistantPreset = {
 interface ClaudeSidebarSettings {
   claudeCommand: string;
   claudePath: string;
+  claudeEdition: ClaudeEdition;
   nodePath: string;
   gitBashPath: string;
   defaultPrompt: string;
@@ -299,6 +315,7 @@ interface ClaudeSidebarSettings {
 const DEFAULT_SETTINGS: ClaudeSidebarSettings = {
   claudeCommand: "",
   claudePath: "",
+  claudeEdition: "auto",
   nodePath: "",
   gitBashPath: "",
   defaultPrompt:
@@ -1036,8 +1053,9 @@ class ClaudeSidebarView extends ItemView {
   runClaudeCommand(prompt: string): Promise<string> {
     const configured = this.plugin.settings.claudeCommand.trim();
     const preferredClaude = this.plugin.settings.claudePath.trim();
+    const edition = this.plugin.settings.claudeEdition;
     const normalized = normalizeCommand(configured);
-    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude);
+    const detectedClaude = configured ? "" : findClaudeBinary(preferredClaude, edition);
 
     const basePath = this.getVaultBasePath();
     const cwd = this.plugin.settings.workingDir.trim() || basePath || undefined;
@@ -1049,6 +1067,7 @@ class ClaudeSidebarView extends ItemView {
     console.debug("[Niki AI] Running Claude command:");
     console.debug("  Configured:", configured || "(empty)");
     console.debug("  Claude path:", preferredClaude || "(auto-detect)");
+    console.debug("  Claude edition:", edition);
     console.debug("  Node path:", this.plugin.settings.nodePath.trim() || "(auto-detect)");
     console.debug("  Git Bash path:", gitBashPath || "(auto-detect/not set)");
     console.debug("  Detected claude:", detectedClaude || "(not found)");
@@ -1154,14 +1173,46 @@ class ClaudeSidebarView extends ItemView {
       }
 
       const useNodeShim = isNodeScript(detectedClaude);
-      const systemNode = useNodeShim
-        ? findNodeBinary(this.plugin.settings.nodePath.trim())
-        : "";
-      const command = useNodeShim ? systemNode || process.execPath : detectedClaude;
-      const args = useNodeShim ? [detectedClaude] : [];
+
+      // 使用 shell 执行以保持与终端一致的行为（使用 shebang）
+      // 这对于某些第三方 API 很重要，因为它们可能检测执行环境
+      if (useNodeShim) {
+        console.debug("[Niki AI] Using shell execution for Node.js script (preserves environment)");
+        return new Promise((resolve, reject) => {
+          const child = exec(
+            `"${detectedClaude}"`,
+            { cwd, maxBuffer: 1024 * 1024 * 10, env, timeout: timeoutMs, shell: true },
+            (error, stdout, stderr) => {
+              this.currentProcess = null;
+              if (error) {
+                console.error("[Niki AI] Command failed (shell exec):");
+                console.error("  Error code:", error.code);
+                console.error("  Error message:", error.message);
+                console.error("  Signal:", error.signal);
+                console.error("  Stderr:", stderr);
+                console.error("  Stdout:", stdout ? stdout.substring(0, 500) : "(empty)");
+                reject(new Error(stderr || error.message));
+                return;
+              }
+              console.debug("[Niki AI] Command succeeded, output length:", (stdout || stderr).length);
+              resolve(stdout || stderr);
+            }
+          );
+          this.currentProcess = child;
+          // 使用 stdin 传递 prompt，而不是命令行参数
+          if (child.stdin) {
+            child.stdin.write(prompt);
+            child.stdin.end();
+          }
+        });
+      }
+
+      // 非脚本文件，使用 execFile
+      const systemNode = findNodeBinary(this.plugin.settings.nodePath.trim());
+      const command = systemNode || process.execPath;
+      const args = [detectedClaude];
 
       console.debug("[Niki AI] Execution details:");
-      console.debug("  Use Node shim:", useNodeShim);
       console.debug("  Command:", command);
       console.debug("  Args:", args);
 
@@ -1950,39 +2001,83 @@ function normalizeCommand(command: string): string {
   return trimmed;
 }
 
-function findClaudeBinary(preferredPath?: string): string {
-  if (preferredPath) {
-    const candidate = preferredPath.trim();
-    if (candidate && isExecutable(candidate)) {
-      return candidate;
-    }
-  }
+function findClaudeBinary(preferredPath?: string, edition: ClaudeEdition = "auto"): string {
   const home = os.homedir();
   const isWindows = process.platform === "win32";
 
-  // Windows 特定路径
-  if (isWindows) {
-    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
-    const windowsCandidates = [
-      path.join(appData, "npm", "claude.cmd"),
-      path.join(appData, "npm", "claude"),
-    ];
-    for (const candidate of windowsCandidates) {
-      if (isExecutable(candidate)) {
+  // Custom edition: only use the provided path
+  if (edition === "custom") {
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
         return candidate;
       }
     }
+    return "";
   }
 
-  // Unix-like 系统 (macOS/Linux) 路径
-  const unixCandidates = [
-    path.join(home, ".npm-global", "bin", "claude"),
-    path.join(home, ".local", "bin", "claude"),
+  // Build candidate lists based on edition preference
+  const npmCandidates: string[] = [];
+  const nativeCandidates: string[] = [];
+
+  if (isWindows) {
+    const appData = process.env.APPDATA || path.join(home, "AppData", "Roaming");
+    npmCandidates.push(
+      path.join(appData, "npm", "claude.cmd"),
+      path.join(appData, "npm", "claude"),
+    );
+    // Native version on Windows (from install.sh)
+    nativeCandidates.push(
+      path.join(home, ".claude", "bin", "claude.exe"),
+      path.join(home, ".claude", "bin", "claude.cmd"),
+    );
+  } else {
+    // npm candidates
+    npmCandidates.push(
+      path.join(home, ".npm-global", "bin", "claude"),
+    );
+    // Native candidates (from install.sh)
+    nativeCandidates.push(
+      path.join(home, ".local", "bin", "claude"),
+      path.join(home, ".claude", "bin", "claude"),
+    );
+  }
+
+  // Common system paths (treated as native)
+  nativeCandidates.push(
     "/opt/homebrew/bin/claude",
     "/usr/local/bin/claude",
     "/usr/bin/claude",
-  ];
-  for (const candidate of unixCandidates) {
+  );
+
+  // Order candidates based on edition preference
+  let candidates: string[] = [];
+  if (edition === "custom") {
+    // custom: only use the preferred path if provided
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+    return "";
+  } else if (edition === "npm") {
+    candidates = [...npmCandidates, ...nativeCandidates];
+  } else if (edition === "native") {
+    candidates = [...nativeCandidates, ...npmCandidates];
+  } else {
+    // auto: preferred path first, then npm, then native
+    if (preferredPath) {
+      const candidate = preferredPath.trim();
+      if (candidate && isExecutable(candidate)) {
+        return candidate;
+      }
+    }
+    candidates = [...npmCandidates, ...nativeCandidates];
+  }
+
+  // Search through candidates
+  for (const candidate of candidates) {
     if (isExecutable(candidate)) {
       return candidate;
     }
@@ -2263,6 +2358,22 @@ class ClaudeSidebarSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.claudePath)
           .onChange(async (value) => {
             this.plugin.settings.claudePath = value;
+            await this.plugin.saveSettings();
+          })
+      );
+
+    new Setting(containerEl)
+      .setName(this.plugin.t("settingClaudeEditionName"))
+      .setDesc(this.plugin.t("settingClaudeEditionDesc"))
+      .addDropdown((dropdown) =>
+        dropdown
+          .addOption("auto", this.plugin.t("editionAuto"))
+          .addOption("npm", this.plugin.t("editionNpm"))
+          .addOption("native", this.plugin.t("editionNative"))
+          .addOption("custom", this.plugin.t("editionCustom"))
+          .setValue(this.plugin.settings.claudeEdition)
+          .onChange(async (value) => {
+            this.plugin.settings.claudeEdition = value as ClaudeEdition;
             await this.plugin.saveSettings();
           })
       );
