@@ -38,6 +38,66 @@ npm run build
 
 ## ⚙️ 配置
 
+### 0. Claude Code 安装
+
+在使用插件前，需要先安装 Claude Code CLI。有两种安装方式：
+
+#### 方式一：npm 安装（推荐）
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+**特点：**
+- ✅ 更新方便：`npm update -g @anthropic-ai/claude-code`
+- ✅ 跨平台一致：Windows/macOS/Linux 行为相同
+- ✅ Node.js 生态：需要 Node.js 环境
+- ✅ 版本管理：可通过 npm 锁定特定版本
+- 📍 安装位置：
+  - macOS/Linux: `~/.npm-global/bin/claude`
+  - Windows: `%APPDATA%\npm\claude.cmd`
+
+#### 方式二：官方脚本安装
+
+```bash
+curl -fsSL https://claude.ai/install.sh | bash
+```
+
+**特点：**
+- ✅ 原生二进制：独立运行，不依赖 Node.js
+- ✅ 性能更优：启动速度快，内存占用低
+- ✅ 自动更新：内置自动更新机制
+- ⚠️ 区域限制：某些地区可能无法访问 claude.ai
+- 📍 安装位置：
+  - macOS/Linux: `~/.claude/bin/claude` → `~/.local/bin/claude`
+  - Windows: 不支持
+
+#### 两种方式对比
+
+| 特性 | npm 安装 | 官方脚本 |
+|------|----------|----------|
+| **依赖** | Node.js | 无 |
+| **性能** | 较好 | 最优 |
+| **更新方式** | npm update | 自动更新 |
+| **跨平台** | 全平台 | Unix-like |
+| **安装大小** | ~100MB | ~50MB |
+| **推荐场景** | 开发者、Node.js 用户 | 追求性能 |
+
+#### 插件版本选择（v4.0.9+）
+
+插件设置中新增 **"Claude 版本选择"** 选项：
+
+| 选项 | 说明 |
+|------|------|
+| **自动检测** | 自动查找可用版本（默认） |
+| **npm 版本** | 优先使用 npm 安装的版本 |
+| **原生版本** | 优先使用官方脚本安装的版本 |
+| **自定义路径** | 使用"Claude path"中指定的路径 |
+
+**建议：** 如果你同时安装了两个版本，可以在设置中指定优先使用哪个。
+
+---
+
 ### 1. Claude Code 配置（推荐）
 
 在 Claude Code 配置文件（通常位于 `~/.claude/settings.json`）中添加以下内容：
