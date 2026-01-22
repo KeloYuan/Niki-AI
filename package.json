@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node esbuild.config.mjs production",
+    "build": "node esbuild.config.mjs production && node scripts/copy-build.mjs",
     "dev": "node esbuild.config.mjs dev"
   },
   "devDependencies": {
