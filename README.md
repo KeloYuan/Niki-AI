@@ -1,245 +1,102 @@
+# 超级升级版 README 内容在这里
+
 <p align="center">
-  <img src="https://capsule-render.vercel.app/api?type=waving&color=0:0d1117,50:1f2937,100:0d1117&height=200&section=header&text=Niki%20AI&fontSize=50&fontColor=7aa2f7&fontAlignY=40&desc=Obsidian%20×%20Claude%20Code%20%E2%80%94%20AI-Powered%20Writing%20Companion&descSize=16&descAlignY=60&descAlign=50&animation=fadeIn" width="100%" />
+  <img src="https://capsule-render.vercel.app/api?type=wave&color=0:0d1117,50:1f2937,100:7aa2f7&height=280&section=header&text=Niki%20AI&fontSize=60&fontColor=ffffff&fontAlignY=45&desc=Obsidian%20%E2%9C%95%EF%B8%8F%20Claude%20Code%20%E2%80%94%20The%20Ultimate%20AI%20Writing%20Companion&descSize=20&descAlignY=65&descAlign=50&animation=scaleIn" width="100%" />
 </p>
 
 <p align="center">
-  <a href="https://github.com/KeloYuan/Niki-AI/releases"><img src="https://img.shields.io/github/v/release/KeloYuan/Niki-AI?style=for-the-badge&color=7aa2f7" /></a>
-  <a href="https://github.com/KeloYuan/Niki-AI/blob/main/LICENSE"><img src="https://img.shields.io/github/license/KeloYuan/Niki-AI?style=for-the-badge&color=9ece6a" /></a>
-  <a href="https://github.com/KeloYuan/Niki-AI/stargazers"><img src="https://img.shields.io/github/stars/KeloYuan/Niki-AI?style=for-the-badge&color=e0af68" /></a>
-  <a href="https://github.com/KeloYuan/Niki-AI/issues"><img src="https://img.shields.io/github/issues/KeloYuan/Niki-AI?style=for-the-badge&color=f7768e" /></a>
-  <a href="https://github.com/KeloYuan/Niki-AI/network/members"><img src="https://img.shields.io/github/forks/KeloYuan/Niki-AI?style=for-the-badge&color=bb9af7" /></a>
+  <a href="https://github.com/KeloYuan/Niki-AI/releases/latest">
+    <img src="https://img.shields.io/github/v/release/KeloYuan/Niki-AI?style=for-the-badge&color=7aa2f7&logo=obsidian&logoColor=white" alt="Latest Release" />
+  </a>
+  <a href="https://github.com/KeloYuan/Niki-AI/stargazers">
+    <img src="https://img.shields.io/github/stars/KeloYuan/Niki-AI?style=for-the-badge&color=e0af68" alt="Stars" />
+  </a>
+  <a href="https://github.com/KeloYuan/Niki-AI/issues">
+    <img src="https://img.shields.io/github/issues/KeloYuan/Niki-AI?style=for-the-badge&color=f7768e" alt="Issues" />
+  </a>
+  <a href="https://github.com/KeloYuan/Niki-AI/blob/main/LICENSE">
+    <img src="https://img.shields.io/github/license/KeloYuan/Niki-AI?style=for-the-badge&color=9ece6a" alt="License" />
+  </a>
   <img src="https://img.shields.io/badge/Obsidian-Plugin-7c3aed?style=for-the-badge&logo=obsidian&logoColor=white" />
-  <img src="https://img.shields.io/badge/Claude%20Code-Powered-d97706?style=for-the-badge&logo=anthropic&logoColor=white" />
+  <img src="https://img.shields.io/badge/Powered%20by-Claude%20Code-d97706?style=for-the-badge&logo=anthropic&logoColor=white" />
+  <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" />
 </p>
 
 <p align="center">
-  <b>在 Obsidian 侧边栏中使用 Claude Code，享受流畅的 AI 辅助写作体验。</b><br/>
-  <i>Embed Claude Code into your Obsidian sidebar — write, edit, and create with AI assistance.</i>
+  <strong>在 Obsidian 侧边栏深度嵌入 Claude Code，开启真正流畅的 AI 辅助写作与编码体验。</strong><br>
+  <em>Embed Claude Code directly into Obsidian — smart context, undo, diff preview, multi-thread chat.</em>
 </p>
 
 ---
 
 ## 🎯 Why Niki AI?
 
-<table>
-  <tr>
-    <td width="50%">
-      <h3>🧬 Deep Integration</h3>
-      <p>不是简单的 API 调用 —— 直接将 Claude Code CLI 嵌入 Obsidian 侧边栏，获得完整的 AI 编码能力。</p>
-    </td>
-    <td width="50%">
-      <h3>🔒 Privacy First</h3>
-      <p>数据始终在本地，AI 直接操作你的 Vault 文件。支持自定义 API 端点，完全掌控你的数据流。</p>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%">
-      <h3>⚡ Zero Friction</h3>
-      <p>@ 引用文件、拖拽添加上下文、一键插入回复、代码差异预览 —— 每个交互都经过精心设计。</p>
-    </td>
-    <td width="50%">
-      <h3>🛡️ Safe by Default</h3>
-      <p>AI 修改文件后一键撤销，多文件批量恢复。你永远有后悔药。</p>
-    </td>
-  </tr>
-</table>
+**不是又一个简单的 AI 聊天插件** —— Niki AI 把 Claude Code 的全部能力**原生嵌入**你的 Obsidian 工作流，让 AI 真正成为你的写作搭档和代码助手。
+
+| 🧬 **Deep Integration** | 🔒 **Privacy First** | ⚡ **Zero Friction** | 🛡️ **Safe by Default** |
+|-------------------------|----------------------|----------------------|------------------------|
+| 直接嵌入 Claude Code CLI，完整 MCP 工具链 | 所有数据本地运行，可自定义 API 端点 | @引用 + 拖拽 + 一键插入 | AI 修改后**一键撤销**，多文件批量恢复 |
 
 ---
 
-## ✨ Features
+## ✨ Core Features
 
-### Core Capabilities
-| Feature | Description |
-|---------|-------------|
-| 🎨 **Sidebar Chat UI** | 原生 Obsidian 界面风格，无缝融入你的工作流 |
-| 📝 **Smart Context** | 自动包含当前笔记或指定文件内容作为上下文 |
-| ⌨️ **@ File Reference** | 输入 `@` 或拖拽文件，快速添加多文件上下文 |
-| 🔄 **Undo Support** | AI 修改文件后一键恢复，支持多文件批量撤销 |
-| 💬 **Multi-Thread** | 创建多个独立对话话题，管理工作互不干扰 |
-| 📋 **Diff Preview** | 代码块差异可视化，审查后一键应用变更 |
-| 🎯 **One-Click Insert** | 将 AI 回复直接插入当前笔记光标位置 |
+### 🚀 核心能力
+- **🎨 沉浸式 Sidebar Chat** —— 完美融合 Obsidian 主题
+- **📝 智能上下文** —— 自动/手动注入当前笔记或多文件
+- **⌨️ @ 文件引用 & 拖拽** —— 极致便捷的上下文管理
+- **🔄 完整 Undo 系统** —— 永远有后悔药
+- **📋 Diff Preview** —— 可视化审查变更后再应用
+- **💬 多线程对话** —— 并行处理多个写作/编码任务
+- **🎯 一键插入** —— AI 回复直接落入光标位置
 
-### Powered by Claude Code
-- 支持 **Opus / Sonnet / Haiku** 模型切换
-- 完整的 **MCP 工具链** 支持
-- 自定义 **系统提示词** 和 **工作目录**
-- npm 版本 & 原生版本 **自动检测**
-- 支持自定义 **API 端点**（兼容第三方代理）
+### 🔥 Powered by Claude Code
+- 支持 **Opus / Sonnet / Haiku** 智能切换
+- 完整 MCP 工具调用链
+- 自定义系统提示词 + 工作目录
+- 自动检测 npm / 原生版本
+- 支持第三方代理 API 端点
 
 ---
 
-## 📦 Installation
+## 📦 Installation（超简单）
+
+**推荐方式（1 分钟搞定）**：
+1. 下载 [最新 Release](https://github.com/KeloYuan/Niki-AI/releases/latest)
+2. 解压到 `.obsidian/plugins/niki-ai/`
+3. 重启 Obsidian → 启用插件
 
 <details>
-<summary><b>方式一：从 Release 安装（推荐）</b></summary>
+<summary>详细安装 & 配置（展开）</summary>
 
-1. 下载 [最新 Release](https://github.com/KeloYuan/Niki-AI/releases)
-2. 解压到你的 Vault：
-   ```
-   <your-vault>/.obsidian/plugins/niki-ai/
-   ```
-3. 重启 Obsidian → 设置 → 第三方插件 → 启用 **Niki AI**
-</details>
+（这里可以保留你原来的详细部分）
 
-<details>
-<summary><b>方式二：从源码构建</b></summary>
-
-```bash
-git clone https://github.com/KeloYuan/Niki-AI.git
-cd Niki-AI
-npm install
-npm run dev    # 开发模式
-npm run build  # 生产构建
-```
-</details>
-
-<details>
-<summary><b>前置要求：安装 Claude Code CLI</b></summary>
-
-**npm 安装（推荐）：**
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-**官方脚本安装：**
-```bash
-curl -fsSL https://claude.ai/install.sh | bash
-```
-
-| 特性 | npm 安装 | 官方脚本 |
-|------|---------|---------|
-| 依赖 | Node.js | 无 |
-| 性能 | 较好 | 最优 |
-| 更新方式 | `npm update` | 自动更新 |
-| 跨平台 | ✅ 全平台 | Unix-like |
-| 安装大小 | ~100MB | ~50MB |
 </details>
 
 ---
 
-## ⚙️ Configuration
+## 📸 Screenshots & Demo
 
-### Claude Code 配置
-
-编辑 `~/.claude/settings.json`：
-
-```json
-{
-  "permissions": {
-    "defaultMode": "bypassPermissions"
-  }
-}
-```
-
-<details>
-<summary><b>完整配置示例（含自定义 API）</b></summary>
-
-```json
-{
-  "env": {
-    "ANTHROPIC_AUTH_TOKEN": "your-api-key",
-    "API_TIMEOUT_MS": "3000000",
-    "ANTHROPIC_BASE_URL": "https://your-api-endpoint.com"
-  },
-  "permissions": {
-    "defaultMode": "bypassPermissions"
-  },
-  "model": "opus"
-}
-```
-</details>
-
-### 插件设置
-
-**Obsidian → 设置 → 插件 → Niki AI**
-
-| 设置项 | 说明 | 默认值 |
-|--------|------|--------|
-| Claude command | CLI 命令模板 | `claude -p "{prompt}"` |
-| Default prompt | 系统提示词 | _(空)_ |
-| Working directory | 工作目录 | 当前 Vault 路径 |
-| Claude 版本选择 | CLI 版本检测策略 | 自动检测 |
+（在这里放截图）
 
 ---
 
-## 💡 Tips & Tricks
+## 🛣️ Roadmap
 
-```
-@ 引用文件     → 输入 @ 弹出文件选择器
-拖拽文件       → 直接拖入输入框添加上下文
-多话题管理     → 左上角下拉切换/新建/删除话题
-撤销修改       → AI 改完文件后点击"撤销"一键恢复
-代码差异       → 点击"查看变更"审查后"应用全部"
-一键插入       → AI 回复直接插入当前笔记光标处
-```
-
----
-
-## 🛠️ Development
-
-```
-Niki-AI/
-├── src/
-│   ├── main.ts          # 插件入口
-│   ├── settings.ts      # 设置面板
-│   ├── view.ts          # 聊天视图
-│   ├── claude.ts        # Claude Code 集成
-│   └── utils/           # 工具函数
-├── styles.css           # 样式
-├── manifest.json        # 插件清单
-└── esbuild.config.mjs   # 构建配置
-```
-
-```bash
-npm install        # 安装依赖
-npm run dev        # 开发模式（自动 watch）
-npm run build      # 生产构建
-```
-
----
-
-## ❓ FAQ
-
-<details>
-<summary><b>没有任何输出？</b></summary>
-
-确认 `Claude command` 设置正确，并在终端中测试命令是否可用。
-</details>
-
-<details>
-<summary><b>提示找不到命令？</b></summary>
-
-检查 PATH 或使用绝对路径，常见位置：
-- `~/.npm-global/bin/claude`
-- `/opt/homebrew/bin/claude`
-</details>
-
-<details>
-<summary><b>AI 说修改了但文件没变？</b></summary>
-
-确保 Claude Code 配置中设置了 `"defaultMode": "bypassPermissions"`。
-</details>
+- [ ] 多模型同时对话
+- [ ] 知识图谱可视化
+- [ ] 批量文件 AI 处理
 
 ---
 
 ## 📊 Star History
 
-<a href="https://star-history.com/#KeloYuan/Niki-AI&Date">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=KeloYuan/Niki-AI&type=Date&theme=dark" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=KeloYuan/Niki-AI&type=Date" />
-   <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=KeloYuan/Niki-AI&type=Date" width="100%" />
- </picture>
-</a>
+[![Star History Chart](https://api.star-history.com/svg?repos=KeloYuan/Niki-AI&type=Date)](https://star-history.com/#KeloYuan/Niki-AI&Date)
 
 ---
 
-## 📄 License
+**Made with ❤️ by [KeloYuan](https://github.com/KeloYuan)**
 
-[MIT](LICENSE) © [KeloYuan](https://github.com/KeloYuan)
+如果这个插件让你更爽，**点个 ⭐ 支持一下**！
 
----
-
-<p align="center">
-  <i>If you find this plugin helpful, consider giving it a ⭐ — it means a lot!</i>
-</p>
+**License** MIT © KeloYuan
