@@ -304,7 +304,6 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
       text: `${this.plugin.t("aboutEmail")}: `,
     });
     emailDiv.createEl("a", {
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- email address
       text: "sloanenyra@gmail.com",
       href: "mailto:sloanenyra@gmail.com",
       cls: "claude-code-about-link",
@@ -328,7 +327,6 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
     githubLink.setAttribute("target", "_blank");
     repoDiv.createSpan({ text: " / " });
     const gitcodeLink = repoDiv.createEl("a", {
-      // eslint-disable-next-line @typescript-eslint/naming-convention -- brand name
       text: "GitCode",
       href: "https://gitcode.com/KeloYuan/NIki-AI",
       cls: "claude-code-about-link",
