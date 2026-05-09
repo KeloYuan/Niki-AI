@@ -1,4 +1,4 @@
-export type ClaudeModel = "haiku" | "sonnet" | "opus" | string;
+export type ClaudeModel = "haiku" | "sonnet" | "opus";
 
 export const DEFAULT_CLAUDE_MODELS: {
   value: ClaudeModel;

@@ -2,7 +2,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import type ClaudeSidebarPlugin from "../plugin";
 import type { AssistantPreset, ClaudeEdition, Language } from "../types";
 import { DEFAULT_CLAUDE_MODELS, THINKING_BUDGETS, DEFAULT_THINKING_BUDGET } from "../models";
-import type { ThinkingBudget } from "../models";
+import type { ClaudeModel, ThinkingBudget } from "../models";
 import { PathHelpModal } from "./PathHelpModal";
 
 export class ClaudeSidebarSettingTab extends PluginSettingTab {
@@ -17,7 +17,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
-    containerEl.createEl("h2", { text: this.plugin.t("settingTitle") });
+    new Setting(containerEl).setName(this.plugin.t("settingTitle")).setHeading();
 
     new Setting(containerEl)
       .setName(this.plugin.t("settingLanguageName"))
@@ -89,7 +89,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
           dropdown.addOption(currentModel, currentModel);
         }
         dropdown.setValue(currentModel).onChange(async (value) => {
-          this.plugin.settings.model = value;
+          this.plugin.settings.model = value as ClaudeModel;
           const isDefault = DEFAULT_CLAUDE_MODELS.some((model) => model.value === value);
           if (isDefault) {
             this.plugin.settings.thinkingBudget = DEFAULT_THINKING_BUDGET[value] || "off";
@@ -181,10 +181,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
           })
       );
 
-    containerEl.createEl("h3", {
-      text: this.plugin.t("assistantSectionName"),
-      cls: "claude-code-about-header",
-    });
+    new Setting(containerEl).setName(this.plugin.t("assistantSectionName")).setHeading();
 
     containerEl.createEl("p", {
       text: this.plugin.t("assistantSectionDesc"),
@@ -198,33 +195,17 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
       }
 
       const assistantList = containerEl.createDiv("claude-assistant-list");
-      assistantList.style.marginTop = "12px";
 
       for (const assistant of this.plugin.settings.assistantPresets) {
         const assistantItem = assistantList.createDiv("claude-assistant-item");
-        assistantItem.style.padding = "12px";
-        assistantItem.style.marginBottom = "8px";
-        assistantItem.style.border = "1px solid var(--background-modifier-border)";
-        assistantItem.style.borderRadius = "8px";
-        assistantItem.style.background = "var(--background-secondary)";
 
         const nameContainer = assistantItem.createDiv("claude-assistant-name-container");
-        nameContainer.style.display = "flex";
-        nameContainer.style.alignItems = "center";
-        nameContainer.style.justifyContent = "space-between";
-        nameContainer.style.marginBottom = "8px";
 
         const nameInput = nameContainer.createEl("input", {
           type: "text",
           value: assistant.name,
+          cls: "claude-assistant-name-input",
         });
-        nameInput.style.flex = "1";
-        nameInput.style.marginRight = "8px";
-        nameInput.style.padding = "6px 10px";
-        nameInput.style.border = "1px solid var(--background-modifier-border)";
-        nameInput.style.borderRadius = "6px";
-        nameInput.style.background = "var(--background-primary)";
-        nameInput.style.color = "var(--text-normal)";
 
         nameInput.addEventListener("input", async () => {
           assistant.name = nameInput.value;
@@ -234,13 +215,8 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
         if (this.plugin.settings.assistantPresets.length > 1) {
           const deleteBtn = nameContainer.createEl("button", {
             text: this.plugin.t("assistantDelete"),
+            cls: "claude-assistant-delete-btn",
           });
-          deleteBtn.style.padding = "4px 10px";
-          deleteBtn.style.borderRadius = "6px";
-          deleteBtn.style.border = "1px solid var(--background-modifier-border)";
-          deleteBtn.style.background = "var(--background-modifier-form-field)";
-          deleteBtn.style.color = "var(--text-normal)";
-          deleteBtn.style.cursor = "pointer";
 
           deleteBtn.addEventListener("click", async () => {
             const index = this.plugin.settings.assistantPresets.findIndex(
@@ -260,25 +236,14 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
 
         const promptLabel = assistantItem.createEl("label", {
           text: `${this.plugin.t("assistantSystemPrompt")}:`,
+          cls: "claude-assistant-prompt-label",
         });
-        promptLabel.style.display = "block";
-        promptLabel.style.fontSize = "12px";
-        promptLabel.style.color = "var(--text-muted)";
-        promptLabel.style.marginBottom = "4px";
+        void promptLabel;
 
         const promptTextarea = assistantItem.createEl("textarea", {
           value: assistant.systemPrompt,
+          cls: "claude-assistant-prompt-textarea",
         });
-        promptTextarea.style.width = "100%";
-        promptTextarea.style.minHeight = "80px";
-        promptTextarea.style.padding = "8px";
-        promptTextarea.style.border = "1px solid var(--background-modifier-border)";
-        promptTextarea.style.borderRadius = "6px";
-        promptTextarea.style.background = "var(--background-primary)";
-        promptTextarea.style.color = "var(--text-normal)";
-        promptTextarea.style.resize = "vertical";
-        promptTextarea.style.fontFamily = "var(--font-monospace)";
-        promptTextarea.style.fontSize = "12px";
 
         let saveTimeout: ReturnType<typeof setTimeout> | null = null;
         promptTextarea.addEventListener("input", () => {
@@ -289,9 +254,9 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
           }
           saveTimeout = setTimeout(async () => {
             await this.plugin.saveSettings();
-            promptTextarea.style.borderColor = "var(--color-green)";
+            promptTextarea.addClass("claude-assistant-prompt-saved");
             setTimeout(() => {
-              promptTextarea.style.borderColor = "var(--background-modifier-border)";
+              promptTextarea.removeClass("claude-assistant-prompt-saved");
             }, 500);
           }, 500);
         });
@@ -318,10 +283,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
         })
     );
 
-    containerEl.createEl("h3", {
-      text: this.plugin.t("aboutSectionName"),
-      cls: "claude-code-about-header",
-    });
+    new Setting(containerEl).setName(this.plugin.t("aboutSectionName")).setHeading();
 
     const aboutDiv = containerEl.createDiv("claude-code-about-section");
 

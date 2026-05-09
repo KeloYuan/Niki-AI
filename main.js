@@ -286,7 +286,7 @@ var import_child_process = require("child_process");
 var import_fs = __toESM(require("fs"), 1);
 var import_os = __toESM(require("os"), 1);
 var import_path = __toESM(require("path"), 1);
-var ANSI_REGEX = /[\u001B\u009B][[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+var ANSI_REGEX = new RegExp("[\\u001B\\u009B][[\\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]", "g");
 function sanitizeStreamOutput(input) {
   return input.replace(ANSI_REGEX, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
@@ -725,7 +725,8 @@ function parseTodoJson(raw) {
       continue;
     }
     const record = item;
-    const content = String((_e = (_d = (_c = record.content) != null ? _c : record.text) != null ? _d : record.title) != null ? _e : "").trim();
+    const rawContent = (_e = (_d = (_c = record.content) != null ? _c : record.text) != null ? _d : record.title) != null ? _e : "";
+    const content = (typeof rawContent === "string" ? rawContent : "").trim();
     if (!content) {
       continue;
     }
@@ -955,7 +956,7 @@ var ClaudeSidebarView = class extends import_obsidian2.ItemView {
     container.addClass("claude-code-sidebar");
     const shell = container.createDiv("claude-code-shell");
     const header = shell.createDiv("claude-code-header");
-    const titleEl = header.createDiv({ text: "Niki AI" }).addClass("claude-code-title");
+    header.createDiv({ text: "Niki AI" }).addClass("claude-code-title");
     const topicControl = header.createDiv("claude-code-topic-control-inline");
     const topicSelector = topicControl.createDiv("claude-code-topic-selector-inline");
     this.topicSelectEl = topicSelector.createEl("select", {
@@ -1208,7 +1209,7 @@ var ClaudeSidebarView = class extends import_obsidian2.ItemView {
             if (entry && entry.isDirectory) {
               const folderName = entry.fullPath.substring(1).split("/")[0];
               const folderPath = folderName;
-              const folderFiles = await this.scanFolder(folderPath);
+              const folderFiles = this.scanFolder(folderPath);
               if (folderFiles.length > 0) {
                 this.addMentionedItem({
                   type: "folder",
@@ -1266,7 +1267,7 @@ var ClaudeSidebarView = class extends import_obsidian2.ItemView {
     this.renderThinkingSelector();
     this.renderTopicSelector();
     this.loaded = true;
-    this.renderMessages();
+    void this.renderMessages();
     this.boundEscKeyHandler = this.handleEscKey.bind(this);
     document.addEventListener("keydown", this.boundEscKeyHandler);
   }
@@ -1354,7 +1355,7 @@ ${content}`;
       flavorText: FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)]
     };
     this.messages.push(pendingMessage);
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
     this.startStreamRenderTimer();
     try {
@@ -1437,7 +1438,7 @@ ${content}`;
       this.currentStreamingContentEl = null;
       this.stopStreamRenderTimer();
     }
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
     await this.saveCurrentTopic();
     this.isSending = false;
@@ -1465,7 +1466,7 @@ ${content}`;
     const lastMessage = this.messages[this.messages.length - 1];
     if (lastMessage && lastMessage.isPending) {
       this.messages.pop();
-      this.renderMessages();
+      void this.renderMessages();
     }
     this.isSending = false;
     this.updateSendButtonState();
@@ -1989,11 +1990,10 @@ ${content.trim()}
     } else {
       const textarea = document.createElement("textarea");
       textarea.value = content;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
+      textarea.addClass("claude-code-clipboard-fallback");
       document.body.appendChild(textarea);
       textarea.select();
-      void document.execCommand("copy");
+      document.execCommand("copy");
       textarea.remove();
     }
   }
@@ -2215,14 +2215,14 @@ ${content.trim()}
   scrollToBottom() {
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
-  findBestMatchingFile(content) {
+  async findBestMatchingFile(content) {
     const allFiles = this.app.vault.getMarkdownFiles();
     const contentLines = content.trim().split("\n").slice(0, 50);
     let bestMatch = null;
     let bestScore = 0;
     for (const file of allFiles) {
       try {
-        const fileContent = this.app.vault.cachedRead(file);
+        const fileContent = await this.app.vault.cachedRead(file);
         if (!fileContent)
           continue;
         const fileLines = fileContent.split("\n").slice(0, 50);
@@ -2254,7 +2254,7 @@ ${content.trim()}
     let blockIndex = 0;
     while ((match = codeBlockRegex.exec(message.content)) !== null) {
       const [, language, content] = match;
-      const targetFile = this.findBestMatchingFile(content);
+      const targetFile = await this.findBestMatchingFile(content);
       if (!targetFile)
         continue;
       const originalContent = await this.app.vault.cachedRead(targetFile);
@@ -2377,13 +2377,11 @@ ${content.trim()}
     const header = diffContainer.createDiv("claude-code-diff-header");
     const fileLink = header.createEl("a", {
       text: targetFile.path,
-      cls: "claude-code-diff-file"
+      cls: "claude-code-diff-file claude-code-diff-file-link"
     });
     fileLink.addEventListener("click", () => {
-      this.app.workspace.openLinkText(targetFile.path, "", true);
+      void this.app.workspace.openLinkText(targetFile.path, "", true);
     });
-    fileLink.style.cursor = "pointer";
-    fileLink.style.textDecoration = "underline";
     const stats = this.computeDiffStats(diff);
     header.createSpan({
       text: `+${stats.added} -${stats.removed}`,
@@ -2437,7 +2435,7 @@ ${content.trim()}
       await this.app.vault.modify(file, codeChange.newContent);
       codeChange.applied = true;
       new import_obsidian2.Notice(this.plugin.tf("changesAppliedTo", { path: file.path }));
-      this.renderMessages();
+      void this.renderMessages();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.plugin.t("unknownError");
       new import_obsidian2.Notice(this.plugin.tf("failedApplyChanges", { message }));
@@ -2466,7 +2464,7 @@ ${content.trim()}
       }
     }
     message.fileModifications = [];
-    this.renderMessages();
+    void this.renderMessages();
   }
   showFilePicker() {
     var _a;
@@ -2755,7 +2753,7 @@ ${content.trim()}
     this.plugin.settings.currentTopicId = newTopic.id;
     this.messages = [];
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
     this.scrollToBottom();
   }
@@ -2775,7 +2773,7 @@ ${content.trim()}
     this.plugin.settings.currentTopicId = topicId;
     this.messages = [...topic.messages];
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
     this.scrollToBottom();
   }
@@ -2792,7 +2790,7 @@ ${content.trim()}
       this.plugin.settings.topics[0].title = "\u65B0\u8BDD\u9898";
       this.plugin.settings.topics[0].updatedAt = Date.now();
       await this.plugin.saveSettings();
-      this.renderMessages();
+      void this.renderMessages();
       this.renderTopicSelector();
       return;
     }
@@ -2801,7 +2799,7 @@ ${content.trim()}
     this.plugin.settings.currentTopicId = nextTopic.id;
     this.messages = [...nextTopic.messages];
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
   }
   generateTopicTitle(topic) {
@@ -2888,7 +2886,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: this.plugin.t("settingTitle") });
+    new import_obsidian4.Setting(containerEl).setName(this.plugin.t("settingTitle")).setHeading();
     new import_obsidian4.Setting(containerEl).setName(this.plugin.t("settingLanguageName")).setDesc(this.plugin.t("settingLanguageDesc")).addDropdown(
       (dropdown) => dropdown.addOption("zh-CN", "\u7B80\u4F53\u4E2D\u6587").addOption("en-US", "English").setValue(this.plugin.settings.language).onChange(async (value) => {
         this.plugin.settings.language = value;
@@ -2976,10 +2974,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
         await this.plugin.saveSettings();
       })
     );
-    containerEl.createEl("h3", {
-      text: this.plugin.t("assistantSectionName"),
-      cls: "claude-code-about-header"
-    });
+    new import_obsidian4.Setting(containerEl).setName(this.plugin.t("assistantSectionName")).setHeading();
     containerEl.createEl("p", {
       text: this.plugin.t("assistantSectionDesc"),
       cls: "setting-item-description"
@@ -2990,44 +2985,23 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
         oldList.remove();
       }
       const assistantList = containerEl.createDiv("claude-assistant-list");
-      assistantList.style.marginTop = "12px";
       for (const assistant of this.plugin.settings.assistantPresets) {
         const assistantItem = assistantList.createDiv("claude-assistant-item");
-        assistantItem.style.padding = "12px";
-        assistantItem.style.marginBottom = "8px";
-        assistantItem.style.border = "1px solid var(--background-modifier-border)";
-        assistantItem.style.borderRadius = "8px";
-        assistantItem.style.background = "var(--background-secondary)";
         const nameContainer = assistantItem.createDiv("claude-assistant-name-container");
-        nameContainer.style.display = "flex";
-        nameContainer.style.alignItems = "center";
-        nameContainer.style.justifyContent = "space-between";
-        nameContainer.style.marginBottom = "8px";
         const nameInput = nameContainer.createEl("input", {
           type: "text",
-          value: assistant.name
+          value: assistant.name,
+          cls: "claude-assistant-name-input"
         });
-        nameInput.style.flex = "1";
-        nameInput.style.marginRight = "8px";
-        nameInput.style.padding = "6px 10px";
-        nameInput.style.border = "1px solid var(--background-modifier-border)";
-        nameInput.style.borderRadius = "6px";
-        nameInput.style.background = "var(--background-primary)";
-        nameInput.style.color = "var(--text-normal)";
         nameInput.addEventListener("input", async () => {
           assistant.name = nameInput.value;
           await this.plugin.saveSettings();
         });
         if (this.plugin.settings.assistantPresets.length > 1) {
           const deleteBtn = nameContainer.createEl("button", {
-            text: this.plugin.t("assistantDelete")
+            text: this.plugin.t("assistantDelete"),
+            cls: "claude-assistant-delete-btn"
           });
-          deleteBtn.style.padding = "4px 10px";
-          deleteBtn.style.borderRadius = "6px";
-          deleteBtn.style.border = "1px solid var(--background-modifier-border)";
-          deleteBtn.style.background = "var(--background-modifier-form-field)";
-          deleteBtn.style.color = "var(--text-normal)";
-          deleteBtn.style.cursor = "pointer";
           deleteBtn.addEventListener("click", async () => {
             const index = this.plugin.settings.assistantPresets.findIndex(
               (a) => a.id === assistant.id
@@ -3043,25 +3017,13 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
           });
         }
         const promptLabel = assistantItem.createEl("label", {
-          text: `${this.plugin.t("assistantSystemPrompt")}:`
+          text: `${this.plugin.t("assistantSystemPrompt")}:`,
+          cls: "claude-assistant-prompt-label"
         });
-        promptLabel.style.display = "block";
-        promptLabel.style.fontSize = "12px";
-        promptLabel.style.color = "var(--text-muted)";
-        promptLabel.style.marginBottom = "4px";
         const promptTextarea = assistantItem.createEl("textarea", {
-          value: assistant.systemPrompt
+          value: assistant.systemPrompt,
+          cls: "claude-assistant-prompt-textarea"
         });
-        promptTextarea.style.width = "100%";
-        promptTextarea.style.minHeight = "80px";
-        promptTextarea.style.padding = "8px";
-        promptTextarea.style.border = "1px solid var(--background-modifier-border)";
-        promptTextarea.style.borderRadius = "6px";
-        promptTextarea.style.background = "var(--background-primary)";
-        promptTextarea.style.color = "var(--text-normal)";
-        promptTextarea.style.resize = "vertical";
-        promptTextarea.style.fontFamily = "var(--font-monospace)";
-        promptTextarea.style.fontSize = "12px";
         let saveTimeout = null;
         promptTextarea.addEventListener("input", () => {
           assistant.systemPrompt = promptTextarea.value;
@@ -3070,9 +3032,9 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
           }
           saveTimeout = setTimeout(async () => {
             await this.plugin.saveSettings();
-            promptTextarea.style.borderColor = "var(--color-green)";
+            promptTextarea.addClass("claude-assistant-prompt-saved");
             setTimeout(() => {
-              promptTextarea.style.borderColor = "var(--background-modifier-border)";
+              promptTextarea.removeClass("claude-assistant-prompt-saved");
             }, 500);
           }, 500);
         });
@@ -3091,10 +3053,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
         renderAssistantPresets();
       })
     );
-    containerEl.createEl("h3", {
-      text: this.plugin.t("aboutSectionName"),
-      cls: "claude-code-about-header"
-    });
+    new import_obsidian4.Setting(containerEl).setName(this.plugin.t("aboutSectionName")).setHeading();
     const aboutDiv = containerEl.createDiv("claude-code-about-section");
     aboutDiv.createEl("p", { cls: "claude-code-about-item" }).createEl("span", {
       text: `${this.plugin.t("aboutVersion")}: ${this.plugin.manifest.version}`

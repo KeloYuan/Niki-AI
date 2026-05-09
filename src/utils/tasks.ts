@@ -91,7 +91,8 @@ function parseTodoJson(raw: string): TaskItem[] | null {
       continue;
     }
     const record = item as Record<string, unknown>;
-    const content = String(record.content ?? record.text ?? record.title ?? "").trim();
+    const rawContent = record.content ?? record.text ?? record.title ?? "";
+    const content = (typeof rawContent === "string" ? rawContent : "").trim();
     if (!content) {
       continue;
     }

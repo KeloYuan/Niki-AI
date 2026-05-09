@@ -189,7 +189,7 @@ export class ClaudeSidebarView extends ItemView {
     const shell = container.createDiv("claude-code-shell");
 
     const header = shell.createDiv("claude-code-header");
-    const titleEl = header.createDiv({ text: "Niki AI" }).addClass("claude-code-title");
+    header.createDiv({ text: "Niki AI" }).addClass("claude-code-title");
 
     // 话题控制区域（放在标题右边）
     const topicControl = header.createDiv("claude-code-topic-control-inline");
@@ -495,7 +495,7 @@ export class ClaudeSidebarView extends ItemView {
               const folderName = entry.fullPath.substring(1).split("/")[0];
               const folderPath = folderName;
 
-              const folderFiles = await this.scanFolder(folderPath);
+              const folderFiles = this.scanFolder(folderPath);
 
               if (folderFiles.length > 0) {
                 this.addMentionedItem({
@@ -563,7 +563,7 @@ export class ClaudeSidebarView extends ItemView {
     this.renderThinkingSelector();
     this.renderTopicSelector();
     this.loaded = true;
-    this.renderMessages();
+    void this.renderMessages();
 
     // 注册文档级 ESC 键监听器（用于打断流式输出）
     this.boundEscKeyHandler = this.handleEscKey.bind(this);
@@ -663,7 +663,7 @@ export class ClaudeSidebarView extends ItemView {
       flavorText: FLAVOR_TEXTS[Math.floor(Math.random() * FLAVOR_TEXTS.length)],
     };
     this.messages.push(pendingMessage);
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
     this.startStreamRenderTimer();
 
@@ -756,7 +756,7 @@ export class ClaudeSidebarView extends ItemView {
       this.currentStreamingContentEl = null;  // 清理流式内容元素引用
       this.stopStreamRenderTimer();
     }
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
 
     await this.saveCurrentTopic();
@@ -792,7 +792,7 @@ export class ClaudeSidebarView extends ItemView {
     const lastMessage = this.messages[this.messages.length - 1];
     if (lastMessage && lastMessage.isPending) {
       this.messages.pop();
-      this.renderMessages();
+      void this.renderMessages();
     }
 
     this.isSending = false;
@@ -1392,11 +1392,10 @@ export class ClaudeSidebarView extends ItemView {
     } else {
       const textarea = document.createElement("textarea");
       textarea.value = content;
-      textarea.style.position = "fixed";
-      textarea.style.opacity = "0";
+      textarea.addClass("claude-code-clipboard-fallback");
       document.body.appendChild(textarea);
       textarea.select();
-      void document.execCommand("copy");
+      document.execCommand("copy");
       textarea.remove();
     }
   }
@@ -1667,7 +1666,7 @@ export class ClaudeSidebarView extends ItemView {
     this.messagesEl.scrollTop = this.messagesEl.scrollHeight;
   }
 
-  private findBestMatchingFile(content: string): TFile | null {
+  private async findBestMatchingFile(content: string): Promise<TFile | null> {
     const allFiles = this.app.vault.getMarkdownFiles();
     const contentLines = content.trim().split("\n").slice(0, 50);
     let bestMatch: TFile | null = null;
@@ -1675,7 +1674,7 @@ export class ClaudeSidebarView extends ItemView {
 
     for (const file of allFiles) {
       try {
-        const fileContent = this.app.vault.cachedRead(file);
+        const fileContent = await this.app.vault.cachedRead(file);
         if (!fileContent) continue;
 
         const fileLines = fileContent.split("\n").slice(0, 50);
@@ -1716,7 +1715,7 @@ export class ClaudeSidebarView extends ItemView {
     while ((match = codeBlockRegex.exec(message.content)) !== null) {
       const [, language, content] = match;
 
-      const targetFile = this.findBestMatchingFile(content);
+      const targetFile = await this.findBestMatchingFile(content);
       if (!targetFile) continue;
 
       const originalContent = await this.app.vault.cachedRead(targetFile);
@@ -1866,13 +1865,11 @@ export class ClaudeSidebarView extends ItemView {
 
     const fileLink = header.createEl("a", {
       text: targetFile.path,
-      cls: "claude-code-diff-file",
+      cls: "claude-code-diff-file claude-code-diff-file-link",
     });
     fileLink.addEventListener("click", () => {
-      this.app.workspace.openLinkText(targetFile.path, "", true);
+      void this.app.workspace.openLinkText(targetFile.path, "", true);
     });
-    fileLink.style.cursor = "pointer";
-    fileLink.style.textDecoration = "underline";
 
     const stats = this.computeDiffStats(diff);
     header.createSpan({
@@ -1938,7 +1935,7 @@ export class ClaudeSidebarView extends ItemView {
       await this.app.vault.modify(file, codeChange.newContent);
       codeChange.applied = true;
       new Notice(this.plugin.tf("changesAppliedTo", { path: file.path }));
-      this.renderMessages();
+      void this.renderMessages();
     } catch (error) {
       const message = error instanceof Error ? error.message : this.plugin.t("unknownError");
       new Notice(this.plugin.tf("failedApplyChanges", { message }));
@@ -1971,7 +1968,7 @@ export class ClaudeSidebarView extends ItemView {
     }
 
     message.fileModifications = [];
-    this.renderMessages();
+    void this.renderMessages();
   }
 
   private showFilePicker(): void {
@@ -2173,7 +2170,7 @@ export class ClaudeSidebarView extends ItemView {
   }
 
   private getAvailableModels(): { value: string; label: string; description: string }[] {
-    const models = [...DEFAULT_CLAUDE_MODELS];
+    const models: { value: string; label: string; description: string }[] = [...DEFAULT_CLAUDE_MODELS];
     const current = this.plugin.settings.model?.trim();
     if (current && !models.some((model) => model.value === current)) {
       models.unshift({ value: current, label: current, description: "Custom model" });
@@ -2210,7 +2207,7 @@ export class ClaudeSidebarView extends ItemView {
       option.addEventListener("click", (event) => {
         event.stopPropagation();
         void (async () => {
-          this.plugin.settings.model = model.value;
+          this.plugin.settings.model = model.value as import("../models").ClaudeModel;
           const isDefault = DEFAULT_CLAUDE_MODELS.some(
             (candidate) => candidate.value === model.value
           );
@@ -2313,7 +2310,7 @@ export class ClaudeSidebarView extends ItemView {
     this.messages = [];
 
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
     this.scrollToBottom();
   }
@@ -2336,7 +2333,7 @@ export class ClaudeSidebarView extends ItemView {
     this.messages = [...topic.messages];
 
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
     this.scrollToBottom();
   }
@@ -2354,7 +2351,7 @@ export class ClaudeSidebarView extends ItemView {
       this.plugin.settings.topics[0].title = "新话题";
       this.plugin.settings.topics[0].updatedAt = Date.now();
       await this.plugin.saveSettings();
-      this.renderMessages();
+      void this.renderMessages();
       this.renderTopicSelector();
       return;
     }
@@ -2366,7 +2363,7 @@ export class ClaudeSidebarView extends ItemView {
     this.messages = [...nextTopic.messages];
 
     await this.plugin.saveSettings();
-    this.renderMessages();
+    void this.renderMessages();
     this.renderTopicSelector();
   }
 
