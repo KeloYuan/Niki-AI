@@ -9,7 +9,7 @@ type StreamBuffers = {
 };
 
 const ANSI_REGEX =
-  /\x1b\x9b[[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+  /\u001b\u009b[[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
 
 export function sanitizeStreamOutput(input: string): string {
   return input.replace(ANSI_REGEX, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
