@@ -207,9 +207,9 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
           cls: "claude-assistant-name-input",
         });
 
-        nameInput.addEventListener("input", async () => {
+        nameInput.addEventListener("input", () => {
           assistant.name = nameInput.value;
-          await this.plugin.saveSettings();
+          void this.plugin.saveSettings();
         });
 
         if (this.plugin.settings.assistantPresets.length > 1) {
@@ -218,7 +218,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
             cls: "claude-assistant-delete-btn",
           });
 
-          deleteBtn.addEventListener("click", async () => {
+          deleteBtn.addEventListener("click", () => {
             const index = this.plugin.settings.assistantPresets.findIndex(
               (a) => a.id === assistant.id
             );
@@ -228,7 +228,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
                 this.plugin.settings.currentAssistantId =
                   this.plugin.settings.assistantPresets[0].id;
               }
-              await this.plugin.saveSettings();
+              void this.plugin.saveSettings();
               renderAssistantPresets();
             }
           });
@@ -304,6 +304,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
       text: `${this.plugin.t("aboutEmail")}: `,
     });
     emailDiv.createEl("a", {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- email address
       text: "sloanenyra@gmail.com",
       href: "mailto:sloanenyra@gmail.com",
       cls: "claude-code-about-link",
@@ -327,6 +328,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
     githubLink.setAttribute("target", "_blank");
     repoDiv.createSpan({ text: " / " });
     const gitcodeLink = repoDiv.createEl("a", {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- brand name
       text: "GitCode",
       href: "https://gitcode.com/KeloYuan/NIki-AI",
       cls: "claude-code-about-link",

@@ -286,7 +286,7 @@ var import_child_process = require("child_process");
 var import_fs = __toESM(require("fs"), 1);
 var import_os = __toESM(require("os"), 1);
 var import_path = __toESM(require("path"), 1);
-var ANSI_REGEX = new RegExp("[\\u001B\\u009B][[\\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]", "g");
+var ANSI_REGEX = new RegExp("[\x1B\x9B][[]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]", "g");
 function sanitizeStreamOutput(input) {
   return input.replace(ANSI_REGEX, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 }
@@ -1039,7 +1039,7 @@ var ClaudeSidebarView = class extends import_obsidian2.ItemView {
     this.inputEl.addEventListener("dragleave", () => {
       this.inputEl.removeClass("claude-code-input-dragover");
     });
-    this.inputEl.addEventListener("drop", async (event) => {
+    this.inputEl.addEventListener("drop", (event) => {
       var _a;
       event.preventDefault();
       this.inputEl.removeClass("claude-code-input-dragover");
@@ -1227,9 +1227,9 @@ var ClaudeSidebarView = class extends import_obsidian2.ItemView {
         }
       }
     });
-    this.includeNoteEl.addEventListener("change", async () => {
+    this.includeNoteEl.addEventListener("change", () => {
       this.plugin.settings.includeCurrentNote = this.includeNoteEl.checked;
-      await this.plugin.saveSettings();
+      void this.plugin.saveSettings();
     });
     this.sendBtn.addEventListener("click", () => void this.handleSend());
     clearBtn.addEventListener("click", () => this.clearChat());
@@ -1474,12 +1474,12 @@ ${content}`;
   }
   clearChat() {
     this.messages = [];
-    this.renderMessages();
+    void this.renderMessages();
     void this.saveCurrentTopic();
   }
   addMessage(message) {
     this.messages.push(message);
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
   }
   scheduleStreamRender() {
@@ -1552,7 +1552,7 @@ ${content}`;
       return null;
     const indicator = contentEl.querySelector(".claude-code-thinking-indicator");
     if (indicator) {
-      indicator.style.display = "none";
+      indicator.addClass("claude-code-hidden");
     }
     let streamingEl = contentEl.querySelector(".claude-code-streaming");
     if (!streamingEl) {
@@ -1984,10 +1984,9 @@ ${content.trim()}
     new import_obsidian2.Notice(this.plugin.tf("insertedInto", { path: file.path }));
   }
   async copyToClipboard(content) {
-    var _a;
-    if ((_a = navigator == null ? void 0 : navigator.clipboard) == null ? void 0 : _a.writeText) {
+    try {
       await navigator.clipboard.writeText(content);
-    } else {
+    } catch (e) {
       const textarea = document.createElement("textarea");
       textarea.value = content;
       textarea.addClass("claude-code-clipboard-fallback");
@@ -2077,7 +2076,7 @@ ${content.trim()}
             thinkingSegments.join("\n\n"),
             thinkingContent,
             "",
-            this.plugin
+            this
           );
         }
         if (hasStream) {
@@ -2089,7 +2088,7 @@ ${content.trim()}
           this.renderThinkingBlock(contentEl, message);
         }
         try {
-          import_obsidian2.MarkdownRenderer.render(this.app, message.content, contentEl, "", this.plugin);
+          void import_obsidian2.MarkdownRenderer.render(this.app, message.content, contentEl, "", this);
         } catch (error) {
           console.error("Failed to render markdown:", error);
           contentEl.createEl("pre", { text: message.content });
@@ -2158,22 +2157,34 @@ ${content.trim()}
     if (currentTask) {
       current.textContent = currentTask.activeForm || currentTask.content;
     } else {
-      current.style.display = "none";
+      current.addClass("claude-code-hidden");
     }
     const status = header.createSpan("claude-code-tasks-status");
     if (completedCount === totalCount && totalCount > 0) {
       status.addClass("is-complete");
       (0, import_obsidian2.setIcon)(status, "check");
     } else {
-      status.style.display = "none";
+      status.addClass("claude-code-hidden");
     }
     const content = panel.createDiv("claude-code-tasks-content");
     renderTaskItems(content, tasks);
     const updateCollapsedState = () => {
       const isExpanded = this.isTasksExpanded;
-      content.style.display = isExpanded ? "block" : "none";
-      current.style.display = isExpanded || !currentTask ? "none" : "inline-flex";
-      status.style.display = isExpanded || completedCount !== totalCount ? "none" : "inline-flex";
+      if (isExpanded) {
+        content.removeClass("claude-code-hidden");
+      } else {
+        content.addClass("claude-code-hidden");
+      }
+      if (isExpanded || !currentTask) {
+        current.addClass("claude-code-hidden");
+      } else {
+        current.removeClass("claude-code-hidden");
+      }
+      if (isExpanded || completedCount !== totalCount) {
+        status.addClass("claude-code-hidden");
+      } else {
+        status.removeClass("claude-code-hidden");
+      }
       const ariaKey = isExpanded ? "tasksCollapseAria" : "tasksExpandAria";
       header.setAttribute(
         "aria-label",
@@ -2341,11 +2352,11 @@ ${content.trim()}
       state.isExpanded = !state.isExpanded;
       if (state.isExpanded) {
         wrapperEl.addClass("expanded");
-        contentEl.style.display = "block";
+        contentEl.removeClass("claude-code-hidden");
         headerEl.setAttribute("aria-expanded", "true");
       } else {
         wrapperEl.removeClass("expanded");
-        contentEl.style.display = "none";
+        contentEl.addClass("claude-code-hidden");
         headerEl.setAttribute("aria-expanded", "false");
       }
     };
@@ -2367,7 +2378,7 @@ ${content.trim()}
     const duration = message.thinkingDuration ? this.plugin.tf("thinkingLabel", { duration: String(message.thinkingDuration) }) : this.plugin.t("thinkingLabelShort");
     labelEl.setText(duration);
     const contentEl = wrapperEl.createDiv({ cls: "claude-code-thinking-content" });
-    void import_obsidian2.MarkdownRenderer.render(this.app, message.thinkingContent || "", contentEl, "", this.plugin);
+    void import_obsidian2.MarkdownRenderer.render(this.app, message.thinkingContent || "", contentEl, "", this);
     const state = { isExpanded: false };
     this.setupCollapsible(wrapperEl, header, contentEl, state);
     return wrapperEl;
@@ -2993,16 +3004,16 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
           value: assistant.name,
           cls: "claude-assistant-name-input"
         });
-        nameInput.addEventListener("input", async () => {
+        nameInput.addEventListener("input", () => {
           assistant.name = nameInput.value;
-          await this.plugin.saveSettings();
+          void this.plugin.saveSettings();
         });
         if (this.plugin.settings.assistantPresets.length > 1) {
           const deleteBtn = nameContainer.createEl("button", {
             text: this.plugin.t("assistantDelete"),
             cls: "claude-assistant-delete-btn"
           });
-          deleteBtn.addEventListener("click", async () => {
+          deleteBtn.addEventListener("click", () => {
             const index = this.plugin.settings.assistantPresets.findIndex(
               (a) => a.id === assistant.id
             );
@@ -3011,7 +3022,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
               if (this.plugin.settings.currentAssistantId === assistant.id) {
                 this.plugin.settings.currentAssistantId = this.plugin.settings.assistantPresets[0].id;
               }
-              await this.plugin.saveSettings();
+              void this.plugin.saveSettings();
               renderAssistantPresets();
             }
           });
@@ -3066,6 +3077,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
       text: `${this.plugin.t("aboutEmail")}: `
     });
     emailDiv.createEl("a", {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- email address
       text: "sloanenyra@gmail.com",
       href: "mailto:sloanenyra@gmail.com",
       cls: "claude-code-about-link"
@@ -3085,6 +3097,7 @@ var ClaudeSidebarSettingTab = class extends import_obsidian4.PluginSettingTab {
     githubLink.setAttribute("target", "_blank");
     repoDiv.createSpan({ text: " / " });
     const gitcodeLink = repoDiv.createEl("a", {
+      // eslint-disable-next-line @typescript-eslint/naming-convention -- brand name
       text: "GitCode",
       href: "https://gitcode.com/KeloYuan/NIki-AI",
       cls: "claude-code-about-link"

@@ -1616,3 +1616,7 @@
   position: fixed;
   opacity: 0;
 }
+
+.claude-code-hidden {
+  display: none !important;
+}

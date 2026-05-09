@@ -298,7 +298,7 @@ export class ClaudeSidebarView extends ItemView {
       this.inputEl.removeClass("claude-code-input-dragover");
     });
 
-    this.inputEl.addEventListener("drop", async (event) => {
+    this.inputEl.addEventListener("drop", (event) => {
       event.preventDefault();
       this.inputEl.removeClass("claude-code-input-dragover");
 
@@ -516,9 +516,9 @@ export class ClaudeSidebarView extends ItemView {
       }
     });
 
-    this.includeNoteEl.addEventListener("change", async () => {
+    this.includeNoteEl.addEventListener("change", () => {
       this.plugin.settings.includeCurrentNote = this.includeNoteEl.checked;
-      await this.plugin.saveSettings();
+      void this.plugin.saveSettings();
     });
 
     this.sendBtn.addEventListener("click", () => void this.handleSend());
@@ -802,13 +802,13 @@ export class ClaudeSidebarView extends ItemView {
 
   clearChat() {
     this.messages = [];
-    this.renderMessages();
+    void this.renderMessages();
     void this.saveCurrentTopic();
   }
 
   addMessage(message: ChatMessage) {
     this.messages.push(message);
-    this.renderMessages();
+    void this.renderMessages();
     this.scrollToBottom();
   }
 
@@ -893,7 +893,7 @@ export class ClaudeSidebarView extends ItemView {
     // 隐藏思考指示器
     const indicator = contentEl.querySelector('.claude-code-thinking-indicator') as HTMLElement;
     if (indicator) {
-      indicator.style.display = 'none';
+      indicator.addClass('claude-code-hidden');
     }
 
     // 查找或创建流式内容容器
@@ -1387,9 +1387,9 @@ export class ClaudeSidebarView extends ItemView {
   }
 
   private async copyToClipboard(content: string): Promise<void> {
-    if (navigator?.clipboard?.writeText) {
+    try {
       await navigator.clipboard.writeText(content);
-    } else {
+    } catch {
       const textarea = document.createElement("textarea");
       textarea.value = content;
       textarea.addClass("claude-code-clipboard-fallback");
@@ -1502,7 +1502,7 @@ export class ClaudeSidebarView extends ItemView {
             thinkingSegments.join("\n\n"),
             thinkingContent,
             "",
-            this.plugin
+            this
           );
         }
 
@@ -1515,7 +1515,7 @@ export class ClaudeSidebarView extends ItemView {
           this.renderThinkingBlock(contentEl, message);
         }
         try {
-          MarkdownRenderer.render(this.app, message.content, contentEl, "", this.plugin);
+          void MarkdownRenderer.render(this.app, message.content, contentEl, "", this);
         } catch (error) {
           console.error("Failed to render markdown:", error);
           contentEl.createEl("pre", { text: message.content });
@@ -1599,7 +1599,7 @@ export class ClaudeSidebarView extends ItemView {
     if (currentTask) {
       current.textContent = currentTask.activeForm || currentTask.content;
     } else {
-      current.style.display = "none";
+      current.addClass("claude-code-hidden");
     }
 
     const status = header.createSpan("claude-code-tasks-status");
@@ -1607,7 +1607,7 @@ export class ClaudeSidebarView extends ItemView {
       status.addClass("is-complete");
       setIcon(status, "check");
     } else {
-      status.style.display = "none";
+      status.addClass("claude-code-hidden");
     }
 
     const content = panel.createDiv("claude-code-tasks-content");
@@ -1615,10 +1615,9 @@ export class ClaudeSidebarView extends ItemView {
 
     const updateCollapsedState = () => {
       const isExpanded = this.isTasksExpanded;
-      content.style.display = isExpanded ? "block" : "none";
-      current.style.display = isExpanded || !currentTask ? "none" : "inline-flex";
-      status.style.display =
-        isExpanded || completedCount !== totalCount ? "none" : "inline-flex";
+      if (isExpanded) { content.removeClass("claude-code-hidden"); } else { content.addClass("claude-code-hidden"); }
+      if (isExpanded || !currentTask) { current.addClass("claude-code-hidden"); } else { current.removeClass("claude-code-hidden"); }
+      if (isExpanded || completedCount !== totalCount) { status.addClass("claude-code-hidden"); } else { status.removeClass("claude-code-hidden"); }
       const ariaKey = isExpanded ? "tasksCollapseAria" : "tasksExpandAria";
       header.setAttribute(
         "aria-label",
@@ -1817,11 +1816,11 @@ export class ClaudeSidebarView extends ItemView {
       state.isExpanded = !state.isExpanded;
       if (state.isExpanded) {
         wrapperEl.addClass("expanded");
-        contentEl.style.display = "block";
+        contentEl.removeClass("claude-code-hidden");
         headerEl.setAttribute("aria-expanded", "true");
       } else {
         wrapperEl.removeClass("expanded");
-        contentEl.style.display = "none";
+        contentEl.addClass("claude-code-hidden");
         headerEl.setAttribute("aria-expanded", "false");
       }
     };
@@ -1850,7 +1849,7 @@ export class ClaudeSidebarView extends ItemView {
     labelEl.setText(duration);
 
     const contentEl = wrapperEl.createDiv({ cls: "claude-code-thinking-content" });
-    void MarkdownRenderer.render(this.app, message.thinkingContent || "", contentEl, "", this.plugin);
+    void MarkdownRenderer.render(this.app, message.thinkingContent || "", contentEl, "", this);
 
     const state = { isExpanded: false };
     this.setupCollapsible(wrapperEl, header, contentEl, state);
