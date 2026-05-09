@@ -3,7 +3,7 @@ import type { Language } from "./types";
 const I18N = {
   "zh-CN": {
     openSidebarCommand: "打开 Niki AI 侧边栏",
-    sidebarTitle: "Niki AI Sidebar",
+    sidebarTitle: "Niki AI sidebar",
     includeCurrentNote: "包含当前笔记",
     send: "发送",
     clear: "清空",
@@ -36,7 +36,7 @@ const I18N = {
     failedApplyChanges: "应用变更失败：{message}",
     unknownError: "未知错误",
     searchFilesPlaceholder: "搜索文件...",
-    settingTitle: "Niki AI Sidebar",
+    settingTitle: "Niki AI sidebar",
     settingClaudeCommandName: "Claude command",
     settingClaudeCommandDesc:
       "用于运行 Claude Code 的命令。使用 {prompt} 内联提示词，或留空以通过 stdin 发送。",
@@ -129,8 +129,8 @@ const I18N = {
     thinkingBlockAria: "扩展思考内容 - 点击展开",
   },
   "en-US": {
-    openSidebarCommand: "Open Niki AI Sidebar",
-    sidebarTitle: "Niki AI Sidebar",
+    openSidebarCommand: "Open Niki AI sidebar",
+    sidebarTitle: "Niki AI sidebar",
     includeCurrentNote: "Include current note",
     send: "Send",
     clear: "Clear",
@@ -164,7 +164,7 @@ const I18N = {
     failedApplyChanges: "Failed to apply changes: {message}",
     unknownError: "Unknown error",
     searchFilesPlaceholder: "Search files...",
-    settingTitle: "Niki AI Sidebar",
+    settingTitle: "Niki AI sidebar",
     settingClaudeCommandName: "Claude command",
     settingClaudeCommandDesc:
       "Command to run Claude Code. Use {prompt} to inline the prompt, or leave it out to send via stdin.",
