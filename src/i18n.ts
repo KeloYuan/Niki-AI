@@ -178,7 +178,7 @@ const I18N = {
     settingGitBashPathName: "Git Bash path",
     settingGitBashPathDesc:
       "Full path to the Git Bash executable (needed for shell execution on Windows). Leave empty to auto-detect.",
-    settingClaudeEditionName: "Claude Edition",
+    settingClaudeEditionName: "Claude edition",
     settingClaudeEditionDesc:
       "Choose which Claude CLI version to use. auto=auto-detect, npm=npm installed version, native=native binary, custom=custom path.",
     settingModelName: "Model",
@@ -191,7 +191,7 @@ const I18N = {
     editionNative: "Native version",
     editionCustom: "Custom path",
     pathHelpButton: "Help",
-    pathHelpTitle: "Path Help",
+    pathHelpTitle: "Path help",
     pathHelpBody:
       "How to find the full paths for Claude / Node:\n\n" +
       "Windows (recommended):\n" +
@@ -236,18 +236,18 @@ const I18N = {
     aboutDescription: "Description",
     aboutDescriptionText:
       "Niki AI is an Obsidian plugin that integrates Claude Code CLI as a conversational AI assistant. You can chat with Claude in the sidebar, include current note content as context, and insert responses directly into your notes.",
-    assistantSectionName: "Assistant Presets",
+    assistantSectionName: "Assistant presets",
     assistantSectionDesc:
       "Manage and switch between different AI assistants, each with independent prompt configuration.",
-    assistantName: "Assistant Name",
-    assistantSystemPrompt: "System Prompt",
-    assistantAddNew: "Add New Assistant",
-    assistantDelete: "Delete Assistant",
-    assistantEdit: "Edit Assistant",
-    assistantDefaultName: "New Assistant",
+    assistantName: "Assistant name",
+    assistantSystemPrompt: "System prompt",
+    assistantAddNew: "Add new assistant",
+    assistantDelete: "Delete assistant",
+    assistantEdit: "Edit assistant",
+    assistantDefaultName: "New assistant",
     assistantDefaultPrompt: "You are an AI assistant.",
     assistantCannotDeleteLast: "Cannot delete the last assistant preset",
-    currentAssistant: "Current Assistant",
+    currentAssistant: "Current assistant",
     sendInterrupt: "Stop",
     sendSending: "Sending...",
     tasksLabel: "Tasks",
