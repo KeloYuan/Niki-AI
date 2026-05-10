@@ -304,6 +304,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
       text: `${this.plugin.t("aboutEmail")}: `,
     });
     emailDiv.createEl("a", {
+      // eslint-disable-next-line obsidianmd/ui/sentence-case -- email address
       text: "sloanenyra@gmail.com",
       href: "mailto:sloanenyra@gmail.com",
       cls: "claude-code-about-link",
@@ -327,7 +328,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
     githubLink.setAttribute("target", "_blank");
     repoDiv.createSpan({ text: " / " });
     const gitcodeLink = repoDiv.createEl("a", {
-      text: "GitCode",
+      text: "Gitcode",
       href: "https://gitcode.com/KeloYuan/NIki-AI",
       cls: "claude-code-about-link",
     });
