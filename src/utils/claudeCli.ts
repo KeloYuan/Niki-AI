@@ -8,8 +8,12 @@ type StreamBuffers = {
   getCombined: () => string;
 };
 
-const ANSI_REGEX =
-  /\u001b\u009b[[\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]/g;
+const ANSI_REGEX = new RegExp(
+  String.fromCharCode(0x1b) +
+    String.fromCharCode(0x9b) +
+    "[[\\]()#;?]*(?:[0-9]{1,4}(?:;[0-9]{0,4})*)?[0-9A-ORZcf-nqry=><]",
+  "g"
+);
 
 export function sanitizeStreamOutput(input: string): string {
   return input.replace(ANSI_REGEX, "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
