@@ -304,8 +304,7 @@ export class ClaudeSidebarSettingTab extends PluginSettingTab {
       text: `${this.plugin.t("aboutEmail")}: `,
     });
     emailDiv.createEl("a", {
-      // eslint-disable-next-line obsidianmd/ui/sentence-case -- email address
-      text: "sloanenyra@gmail.com",
+      text: "Sloanenyra@gmail.com",
       href: "mailto:sloanenyra@gmail.com",
       cls: "claude-code-about-link",
     });
